@@ -1,11 +1,11 @@
 """End-to-end flows through the Flask views and the real SQL."""
 
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 import pytest
 
-from pocket_ledger import ledger
+from pocket_ledger import fx, ledger
 
 MONTH = date.today().replace(day=1)
 TODAY = date.today().isoformat()
@@ -99,14 +99,19 @@ def test_edit_transaction_recalculates_budget_and_balance(pg, owner):
     assert "1 000.00 UAH" in owner.get(f"/dashboard?month={month}").text  # full limit remains
 
 
-def test_budget_ignores_other_currencies(pg, owner):
+def test_budget_converts_other_currencies_or_flags_missing_rates(pg, owner, monkeypatch):
     post(owner, "/wallets", {"name": "Card", "currency": "USD", "opening_balance": "0"})
     month = MONTH.strftime("%Y-%m")
     post(owner, f"/budget?month={month}", {"amount": "100", "currency": "UAH"})
     add_expense(owner, wallet_id(pg, "Card"), category_id(pg, "Food", "expense"), "40")
+    monkeypatch.setattr(fx, "load_rates", lambda _: {})
     dashboard = owner.get(f"/dashboard?month={month}").text
-    assert "100.00 UAH" in dashboard and "0.0% used" in dashboard
-    assert "Expenses in USD aren’t counted" in dashboard
+    assert "100.00 UAH" in dashboard and "Totals are incomplete" in dashboard
+    rate = fx.Rate("USD", Decimal(40), "Monobank", datetime.now(timezone.utc), cached=True)
+    monkeypatch.setattr(fx, "load_rates", lambda _: {"USD": rate})
+    dashboard = owner.get(f"/dashboard?month={month}&currency=USD").text
+    assert "37.50 USD" in dashboard and "Monobank (cached)" in dashboard
+    assert "Totals are incomplete" not in dashboard
 
 
 def test_history_filters(pg, owner):

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% from "_field.html" import csrf %}
+{% block title %}Import CSV · Pocket Ledger{% endblock %}
+{% block content %}
+  <h1>Import transactions</h1>
+  <p>Upload a UTF-8 Monobank statement or a CSV using the columns below. Limit: 100 rows and 128 KiB.</p>
+  <p><code>date,kind,amount,currency,category,description</code></p>
+  <p>Use YYYY-MM-DD dates, positive amounts, and your selected wallet’s currency. Description is optional.</p>
+  <p>For Monobank statements, select a wallet in the card’s currency. The preview uses the amounts in that currency.</p>
+  {% if error %}<p class="notice" role="alert">{{ error }}</p>{% endif %}
+  {% if wallets %}
+    <form class="stack" method="post" enctype="multipart/form-data">
+      {{ csrf() }}
+      <label>Wallet
+        <select name="wallet_id" required>
+          {% for wallet in wallets %}
+            <option value="{{ wallet.id }}"{% if selected == wallet.id|string %} selected{% endif %}>{{ wallet.name }} ({{ wallet.currency }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>CSV file <input type="file" name="csv_file" accept=".csv,text/csv" required></label>
+      <button class="button secondary" type="submit">Preview CSV</button>
+    </form>
+  {% else %}
+    <p><a href="{{ url_for('ledger.wallets') }}">Create a wallet</a> before importing.</p>
+  {% endif %}
+  {% if rows %}
+    <h2>Import preview</h2>
+    <ul class="rows">
+      {% for number, row, draft, errors in rows %}
+        <li>
+          <div class="main-col">
+            <strong>Row {{ number }} · {{ row.get('description') or row.get('category') or 'Transaction' }}</strong>
+            <span>{{ row.get('date') }} · {{ row.get('kind') }} · {{ row.get('amount') }} {{ row.get('currency') }}</span>
+            {% for message in errors.values() %}<span class="expense">{{ message }}</span>{% endfor %}
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+    {% if token %}
+      <form method="post" action="{{ url_for('csv_import.save') }}">
+        {{ csrf() }}
+        <input type="hidden" name="token" value="{{ token }}">
+        <button class="button" type="submit">Confirm import</button>
+      </form>
+    {% else %}
+      <p class="notice">Correct the rows marked above and upload the file again.</p>
+    {% endif %}
+  {% endif %}
+{% endblock %}

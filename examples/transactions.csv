@@ -1,0 +1,4 @@
+date,kind,amount,currency,category,description
+2026-11-12,expense,185.00,UAH,Food,Lunch
+2026-11-13,expense,25.50,UAH,Transport,Bus
+2026-11-14,income,500.00,UAH,Other,Gift

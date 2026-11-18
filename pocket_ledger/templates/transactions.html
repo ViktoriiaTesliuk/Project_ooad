@@ -35,6 +35,7 @@
   <div class="actions">
     <a class="button" href="{{ url_for('ledger.new_transaction', kind='expense', wallet=filters.wallet_id or '') }}">Add expense</a>
     <a class="button secondary" href="{{ url_for('ledger.new_transaction', kind='income', wallet=filters.wallet_id or '') }}">Add income</a>
+    <a href="{{ url_for('csv_import.preview') }}">Import CSV</a>
   </div>
 
   {% if transactions %}

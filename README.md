@@ -10,9 +10,9 @@ Pocket Ledger is a personal budgeting app for recording everyday spending, manag
 - Income and expense entry, editing and deletion, with history filters by
   month, wallet and category
 - A monthly spending limit and a dashboard with income, expenses, remaining
-  budget and spending by category, shown separately for each currency
-
-Planned: currency conversion, CSV import and AI-assisted drafts.
+  budget and spending by category in a selected display currency
+- CSV import with a preview and explicit confirmation
+- Gemini-assisted expense drafts with manual review
 
 ## Project documents
 
@@ -67,12 +67,60 @@ execution role on Lambda.
 flask --app pocket_ledger init-db
 ```
 
-This applies `migrations/001_initial.sql` in one transaction. The initial
-schema and default categories can be applied again safely. The migration
+This applies the numbered SQL files in `migrations/` in one transaction.
+Rerun it on an existing database to add the CSV import table and the
+exchange sell rate column. The migration
 identity needs the RDS Data API execute and transaction actions plus access
 to the database secret. Its database user needs permission to create the
 tables. Use only resources covered by the available AWS Free account plan
 and credits.
+
+## CSV import
+
+From **History → Import CSV**, choose a wallet, upload a UTF-8 comma-delimited
+file, and check the preview before confirming. The [example CSV](examples/transactions.csv)
+uses these columns:
+
+| Column | Format |
+| --- | --- |
+| `date` | YYYY-MM-DD |
+| `kind` | `expense` or `income` |
+| `amount` | Positive decimal, up to two fractional digits |
+| `currency` | The selected wallet's currency code |
+| `category` | An existing category name for the row's kind |
+| `description` | Optional text, up to 500 characters |
+
+Monobank statements can also be uploaded directly. The importer reads the
+Ukrainian operation-date header, description, MCC, and signed card-currency
+amount. Select a wallet in the same currency as the card. Where the amount
+cell includes a currency code, the importer checks it against the wallet.
+Common food and transport MCCs are categorized automatically; other rows
+use the `Other` category for their transaction kind.
+
+A file can hold up to 100 transactions and 128 KiB. Correct all marked
+rows before confirming. A preview is valid for 30 minutes and its
+confirmation can be retried without inserting the batch again. Uploading
+the same file as a new preview starts a separate batch.
+
+## Exchange rates
+
+Dashboard and budget comparisons use the latest available rate when
+viewed, including for past months. Wallets and history retain their
+original currency. Conversion uses UAH as the common currency. Monobank's
+buy rate converts into UAH and its sell rate converts out of UAH. A
+quoted cross rate can serve both directions, with the NBU
+official rate as a per-currency fallback. Aurora caches fetched rates
+for five minutes and provides the last known rate during an outage.
+The dashboard shows the source and fetch time and labels cached rates
+and incomplete totals.
+
+## Gemini draft setup
+
+Set `GEMINI_API_KEY` to a key from a Gemini API Free Tier project with
+paid billing disabled. The app uses Gemini 3.1 Flash-Lite. Leave the key
+unset to use manual entry. **Fill from text** sends the typed expense
+description and allowed expense categories to Gemini. Review the suggested
+fields and the selected wallet currency before using **Add transaction**.
 
 ## Tests
 

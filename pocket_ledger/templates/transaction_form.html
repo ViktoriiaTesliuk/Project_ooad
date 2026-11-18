@@ -3,7 +3,7 @@
 {% block title %}{{ 'Edit' if record else 'New' }} transaction · Pocket Ledger{% endblock %}
 {% block content %}
   <h1>{{ 'Edit transaction' if record else 'New transaction' }}</h1>
-  <form class="stack" method="post" novalidate>
+  <form class="stack" method="post" action="{{ url_for('ledger.edit_transaction', record_id=record.id) if record else url_for('ledger.new_transaction') }}" novalidate>
     {{ csrf() }}
     <fieldset role="radiogroup" aria-label="Type">
       {% for kind, label in [('expense', 'Expense'), ('income', 'Income')] %}
@@ -53,6 +53,14 @@
       <button class="button" type="submit">{{ 'Save changes' if record else 'Add transaction' }}</button>
       <a href="{{ url_for('ledger.transactions') }}">Cancel</a>
     </div>
+    {% if not record %}
+      <label>Describe an expense
+        <input name="ai_text" maxlength="500" placeholder="185 for lunch" value="{{ ai_text }}">
+        {{ error(errors, 'ai_text') }}
+      </label>
+      <button class="button secondary" type="submit" formaction="{{ url_for('ledger.suggest_transaction') }}">Fill from text</button>
+      {% if ai_ready %}<p class="notice">Review the draft, including the wallet and its currency, before saving.</p>{% endif %}
+    {% endif %}
   </form>
 
   {% if record %}
