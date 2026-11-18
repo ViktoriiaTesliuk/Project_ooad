@@ -5,7 +5,8 @@
 {% macro err(row, name) %}{% if row.errors.get(name) %}<span class="error" id="r{{ row.index }}-{{ name }}-error">{{ row.errors[name] }}</span>{% endif %}{% endmacro %}
 {% block title %}Check expenses · Pocket Ledger{% endblock %}
 {% block content %}
-  <h1>Check {{ 'the receipt' if source == 'receipt' else ('this expense' if rows|length == 1 else 'these ' ~ rows|length ~ ' expenses') }}</h1>
+  {% set noun = ('entry', 'entries') if has_income else ('expense', 'expenses') %}
+  <h1>Check {{ 'the receipt' if source == 'receipt' else ('this ' ~ noun[0] if rows|length == 1 else 'these ' ~ rows|length ~ ' ' ~ noun[1]) }}</h1>
   <p class="muted">Recognised by AI from your {{ 'receipt photo' if source == 'receipt' else 'message' }}. Nothing is saved yet.
     Fields marked <span class="check-badge">Check</span> were unclear or assumed, so please confirm them.</p>
 
@@ -43,10 +44,21 @@
             </select>
             {% if row.errors.get('wallet_id') %}<span class="error">{{ row.errors['wallet_id'] }}</span>{% endif %}
           </label>
+          <label class="{{ field_class(row, 'kind') }}{{ ' invalid' if row.errors.get('kind') }}" for="r{{ i }}-kind">Type {{ badge(row, 'kind') }}
+            <select id="r{{ i }}-kind" name="r{{ i }}-kind" data-kind-select>
+              <option value="expense"{% if row.kind == 'expense' %} selected{% endif %}>Expense</option>
+              <option value="income"{% if row.kind == 'income' %} selected{% endif %}>Income</option>
+            </select>
+            {% if row.errors.get('kind') %}<span class="error">{{ row.errors['kind'] }}</span>{% endif %}
+          </label>
           <label class="{{ field_class(row, 'category') }}{{ ' invalid' if row.errors.get('category_id') }}" for="r{{ i }}-category_id">Category {{ badge(row, 'category') }}
-            <select id="r{{ i }}-category_id" name="r{{ i }}-category_id">
-              {% for category in categories %}
-                <option value="{{ category.id }}"{% if row.category_id == category.id|string %} selected{% endif %}>{{ category.name }}</option>
+            <select id="r{{ i }}-category_id" name="r{{ i }}-category_id" data-category-select>
+              {% for kind, label in [('expense', 'Expense categories'), ('income', 'Income categories')] %}
+                <optgroup label="{{ label }}" data-kind="{{ kind }}">
+                  {% for category in categories if category.kind == kind %}
+                    <option value="{{ category.id }}"{% if row.category_id == category.id|string %} selected{% endif %}>{{ category.name }}</option>
+                  {% endfor %}
+                </optgroup>
               {% endfor %}
             </select>
             {% if row.errors.get('category_id') %}<span class="error">{{ row.errors['category_id'] }}</span>{% endif %}
@@ -69,7 +81,8 @@
     {% endfor %}
 
     <div class="actions sticky-actions">
-      <button class="button" type="submit" name="action" value="save" data-save>Save {{ rows|selectattr('include')|list|length }} expense{{ '' if rows|selectattr('include')|list|length == 1 else 's' }}</button>
+      {% set selected = rows|selectattr('include')|list|length %}
+      <button class="button" type="submit" name="action" value="save" data-save data-noun="{{ noun[0] }}" data-nouns="{{ noun[1] }}">Save {{ selected }} {{ noun[0] if selected == 1 else noun[1] }}</button>
       <button class="button secondary" type="submit" name="action" value="discard" formnovalidate>Discard</button>
     </div>
   </form>
@@ -81,9 +94,28 @@
         const boxes = [...form.querySelectorAll('[data-include]')];
         const count = boxes.filter((box) => box.checked).length;
         boxes.forEach((box) => box.closest('.ai-row').classList.toggle('excluded', !box.checked));
-        save.textContent = `Save ${count} expense${count === 1 ? '' : 's'}`;
+        save.textContent = `Save ${count} ${count === 1 ? save.dataset.noun : save.dataset.nouns}`;
         save.disabled = count === 0;
       }
+      // Show only the categories that match each row's type; the server validates this too.
+      function syncCategories(row) {
+        const kind = row.querySelector('[data-kind-select]').value;
+        const select = row.querySelector('[data-category-select]');
+        for (const group of select.querySelectorAll('optgroup')) {
+          const match = group.dataset.kind === kind;
+          group.hidden = !match;
+          group.disabled = !match;
+        }
+        if (select.selectedOptions[0]?.parentElement.dataset.kind !== kind) {
+          const options = [...select.querySelectorAll(`optgroup[data-kind="${kind}"] option`)];
+          const fallback = options.find((option) => option.textContent.trim() === 'Other') || options[0];
+          if (fallback) fallback.selected = true;
+        }
+      }
+      form.querySelectorAll('.ai-row').forEach(syncCategories);
+      form.addEventListener('change', (event) => {
+        if (event.target.matches('[data-kind-select]')) syncCategories(event.target.closest('.ai-row'));
+      });
       form.addEventListener('change', update);
       form.addEventListener('submit', () => setTimeout(() => { save.disabled = true; }, 0));
       update();

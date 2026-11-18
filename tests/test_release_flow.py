@@ -211,7 +211,7 @@ def test_release_flow_through_function_url(pg, app, google, outside_services):
 
     # AI entry: one sentence, recognised by Gemini, reviewed (EUR wallet picked from the currency), saved.
     form_page = alice.get("/transactions/new")
-    assert "Add expenses with AI" in form_page["text"]
+    assert "Add income and expenses with AI" in form_page["text"]
     recognised = alice.request("POST", "/ai/expenses", form={
         "csrf_token": alice.csrf(form_page), "back": "new", "ai_text": "12.5 EUR for coffee and a croissant"})
     assert recognised["statusCode"] == 302 and recognised["headers"]["location"].startswith("/ai/expenses/")

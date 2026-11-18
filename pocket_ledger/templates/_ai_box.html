@@ -4,10 +4,10 @@
     <form class="ai-box" method="post" action="{{ url_for('ai.recognise_view') }}" enctype="multipart/form-data" data-ai-box>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="back" value="{{ back }}">
-      <h2>Add expenses with AI</h2>
-      <label for="ai_text" class="visually-hidden">Describe your expenses in English or Ukrainian</label>
+      <h2>Add income and expenses with AI</h2>
+      <label for="ai_text" class="visually-hidden">Describe your income or expenses in English or Ukrainian</label>
       <textarea id="ai_text" name="ai_text" rows="2" maxlength="500" data-ai-text
-                placeholder="Spent 250 UAH on groceries at Silpo yesterday · Таксі 500 грн і обід 150 грн">{{ ai.text }}</textarea>
+                placeholder="Spent 250 UAH on groceries at Silpo yesterday · Отримала стипендію 2000 грн, таксі 150 грн">{{ ai.text }}</textarea>
       <div class="ai-actions">
         <label class="button secondary file-button">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>

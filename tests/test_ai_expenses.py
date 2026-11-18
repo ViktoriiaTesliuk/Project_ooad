@@ -23,8 +23,8 @@ TODAY = ai_expenses.today_kyiv()
 
 
 def expense(**fields):
-    base = {"amount": None, "currency": None, "date": None, "merchant": None, "description": None,
-            "category": None, "items": [], "uncertain": []}
+    base = {"kind": "expense", "amount": None, "currency": None, "date": None, "merchant": None,
+            "description": None, "category": None, "items": [], "uncertain": []}
     return dict(base, **fields)
 
 
@@ -128,7 +128,10 @@ def test_one_sentence_with_two_expenses(pg, user, ai):
     sent = ai.calls[0]
     assert json.loads(sent["contents"][0]["parts"][0]["text"]) == {"message": "Paid 500 UAH for a taxi and 150 UAH for lunch"}
     system = sent["systemInstruction"]["parts"][0]["text"]
-    assert f"Today is {TODAY.isoformat()}" in system and "Cafes & Restaurants" in system and "Salary" not in system
+    assert f"Today is {TODAY.isoformat()}" in system and "Cafes & Restaurants" in system
+    expense_list = system.split("for an expense exactly one of:")[1].split(";")[0]
+    income_list = system.split("for income exactly one of:")[1].split(".")[0]
+    assert "Salary" not in expense_list and "Salary" in income_list and "Transport" not in income_list
     assert sent["generationConfig"]["responseJsonSchema"] == ai_expenses.SCHEMA
 
     assert "Check these 2 expenses" in page.text and "Save 2 expenses" in page.text
@@ -210,8 +213,42 @@ def test_daily_limit(pg, app, user, ai):
 
 def test_box_is_hidden_without_a_key(pg, app, user):
     app.config["GEMINI_API_KEY"] = None
-    assert "Add expenses with AI" not in user.get("/dashboard").text
+    assert "Add income and expenses with AI" not in user.get("/dashboard").text
     assert recognise(user, "coffee 90").headers["Location"] == "/transactions/new"
+
+
+def income_category(pg, name):
+    return pg.execute("SELECT id FROM categories WHERE name = %s AND kind = 'income'", (name,)).fetchone()[0]
+
+
+def test_income_and_expense_in_one_sentence(pg, user, ai):
+    ai.reply(expense(kind="income", amount=2000, currency="UAH", description="Стипендія", category="Other"),
+             expense(amount=150, currency="UAH", description="Таксі", category="Transport"))
+    url, page, values = review_form(user, recognise(user, "Отримала стипендію 2000 грн і заплатила 150 за таксі"))
+    system = ai.calls[0]["systemInstruction"]["parts"][0]["text"]
+    assert "for income exactly one of" in system and "Salary" in system
+    assert "Check these 2 entries" in page.text and "Save 2 entries" in page.text
+    assert values["r0-kind"] == "income" and values["r1-kind"] == "expense"
+    assert values["r0-category_id"] == str(income_category(pg, "Other"))
+    assert values["r1-category_id"] == str(category(pg, "Transport"))
+
+    saved = user.post(url, data={**values, "action": "save"})
+    assert saved.status_code == 302
+    dashboard = user.get(saved.headers["Location"]).text
+    assert "Saved 1 income (+2\u202f000.00 UAH) and 1 expense (150.00 UAH)." in dashboard
+    rows = pg.execute("SELECT kind, amount FROM transactions WHERE description IN ('Стипендія', 'Таксі') ORDER BY kind").fetchall()
+    assert rows == [("expense", Decimal("150.00")), ("income", Decimal("2000.00"))]
+
+
+def test_switching_a_draft_to_income_needs_an_income_category(pg, user, ai):
+    ai.reply(expense(amount=500, currency="UAH", description="Повернення боргу", category="Other"))
+    url, _page, values = review_form(user, recognise(user, "Друг повернув 500 грн"))
+    wrong = user.post(url, data={**values, "r0-kind": "income", "action": "save"})  # still an expense category
+    assert wrong.status_code == 422 and "Choose an income category." in wrong.text
+    fixed = user.post(url, data={**values, "r0-kind": "income", "r0-category_id": income_category(pg, "Other"),
+                                 "action": "save"})
+    assert fixed.status_code == 302
+    assert pg.execute("SELECT kind FROM transactions WHERE description = 'Повернення боргу'").fetchone() == ("income",)
 
 
 # --------------------------------------------------------------------------- receipts
@@ -270,6 +307,17 @@ def test_image_type_detection():
     assert ai_expenses.image_type(b"RIFF\x00\x00\x00\x00WEBPVP8 ") == "image/webp"
     assert ai_expenses.image_type(b"\x00\x00\x00\x18ftypheic") == "image/heic"
     assert ai_expenses.image_type(b"GIF89a") is None
+
+
+def test_receipts_are_always_expenses_and_unknown_kinds_are_flagged():
+    categories = {"expense": {"Food": 1, "Other": 4}, "income": {"Salary": 5, "Other": 6}}
+    today = date(2026, 11, 18)
+    receipt = ai_expenses.normalise(expense(kind="income", amount=5, category="Salary"), categories, today, receipt=True)
+    assert receipt["kind"] == "expense" and receipt["category_id"] == 4  # Salary isn't an expense category
+    salary = ai_expenses.normalise(expense(kind="income", amount=900, category="salary"), categories, today, receipt=False)
+    assert salary["kind"] == "income" and salary["category_id"] == 5 and "category" not in salary["uncertain"]
+    odd = ai_expenses.normalise(expense(kind="transfer", amount=1, category="Food"), categories, today, receipt=False)
+    assert odd["kind"] == "expense" and "kind" in odd["uncertain"]
 
 
 def test_normalise_rules():
