@@ -1,6 +1,83 @@
 {% extends "base.html" %}
 {% block title %}Dashboard · Pocket Ledger{% endblock %}
 {% block content %}
-  <h1>Dashboard</h1>
-  <p>You’re signed in to Pocket Ledger.</p>
+  <div class="month-switch">
+    <a href="{{ url_for('ledger.dashboard', month=previous_month|month_param) }}" aria-label="Previous month">←</a>
+    <h1>{{ month|month_label }}</h1>
+    <a href="{{ url_for('ledger.dashboard', month=next_month|month_param) }}" aria-label="Next month">→</a>
+  </div>
+
+  <div class="actions">
+    <a class="button" href="{{ url_for('ledger.new_transaction', kind='expense') }}">Add expense</a>
+    <a class="button secondary" href="{{ url_for('ledger.new_transaction', kind='income') }}">Add income</a>
+    <a href="{{ url_for('ledger.transactions', month=month|month_param) }}">See this month’s history</a>
+  </div>
+
+  {% if not wallets %}
+    <p class="notice">Start by <a href="{{ url_for('ledger.wallets') }}">adding a cash or card wallet</a>.</p>
+  {% endif %}
+
+  <h2>Monthly budget</h2>
+  {% set status = summary.budget %}
+  {% if status %}
+    <div class="card">
+      <dl>
+        <div class="stat"><dt>Limit</dt><dd>{{ status.budget.amount|money(status.budget.currency) }}</dd></div>
+        <div class="stat"><dt>Spent</dt><dd class="expense">{{ status.spent|money(status.budget.currency) }}</dd></div>
+        <div class="stat"><dt>{{ 'Over budget' if status.over else 'Remaining' }}</dt>
+          <dd class="{{ 'expense' if status.over else 'income' }}">{{ (status.remaining|abs)|money(status.budget.currency) }}</dd></div>
+      </dl>
+      <div class="meter{{ ' over' if status.over }}" role="img" aria-label="{{ status.used_percent }}% of the limit used">
+        <span style="width: {{ [status.used_percent, 100]|min }}%"></span>
+      </div>
+      <p class="muted">{{ status.used_percent }}% used · <a href="{{ url_for('ledger.budget', month=month|month_param) }}">Change limit</a></p>
+      {% if status.excluded_currencies %}
+        <p class="notice">Expenses in {{ status.excluded_currencies|join(', ') }} aren’t counted toward this
+          {{ status.budget.currency }} limit until currency conversion is available.</p>
+      {% endif %}
+    </div>
+  {% else %}
+    <p class="muted">No spending limit for this month. <a href="{{ url_for('ledger.budget', month=month|month_param) }}">Set one</a>.</p>
+  {% endif %}
+
+  <h2>Income and expenses</h2>
+  {% if summary.currencies %}
+    <p class="muted">Totals are shown per currency; amounts in different currencies are not added together.</p>
+    <div class="cards">
+      {% for item in summary.currencies %}
+        <section class="card">
+          <h3>{{ item.currency }}</h3>
+          <dl>
+            <div class="stat"><dt>Income</dt><dd class="income">{{ item.income|money }}</dd></div>
+            <div class="stat"><dt>Expenses</dt><dd class="expense">{{ item.expenses|money }}</dd></div>
+            <div class="stat"><dt>Net</dt><dd>{{ item.net|money }}</dd></div>
+          </dl>
+          {% if item.categories %}
+            <h3 style="margin-top: 1rem">Spending by category</h3>
+            {% for spend in item.categories %}
+              <div class="bar">
+                <a href="{{ url_for('ledger.transactions', month=month|month_param, category=spend.category_id) }}">{{ spend.name }}</a>
+                <div class="track"><span style="width: {{ spend.share }}%"></span></div>
+                <span class="amount">{{ spend.amount|money }} <span class="muted">({{ spend.share }}%)</span></span>
+              </div>
+            {% endfor %}
+          {% endif %}
+        </section>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">No income or expenses recorded in {{ month|month_label }}.</p>
+  {% endif %}
+
+  {% if wallets %}
+    <h2>Wallet balances</h2>
+    <ul class="rows">
+      {% for wallet in wallets %}
+        <li>
+          <span class="main-col"><strong>{{ wallet.name }}</strong></span>
+          <span class="amount">{{ wallet.balance|money(wallet.currency) }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
 {% endblock %}

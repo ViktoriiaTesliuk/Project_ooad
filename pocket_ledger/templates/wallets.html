@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "_field.html" import error, invalid, csrf, currency_select %}
+{% block title %}Wallets · Pocket Ledger{% endblock %}
+{% block content %}
+  <h1>Wallets</h1>
+  {% if wallets %}
+    <ul class="rows">
+      {% for wallet in wallets %}
+        <li>
+          <span class="main-col">
+            <strong>{{ wallet.name }}</strong>
+            <span class="muted">Opening {{ wallet.opening_balance|money(wallet.currency) }} ·
+              {{ wallet.transaction_count }} transaction{{ '' if wallet.transaction_count == 1 else 's' }}</span>
+          </span>
+          <span class="amount">
+            {{ wallet.balance|money(wallet.currency) }}<br>
+            <a class="muted" href="{{ url_for('ledger.transactions', wallet=wallet.id) }}">History</a> ·
+            <a class="muted" href="{{ url_for('ledger.edit_wallet', wallet_id=wallet.id) }}">Edit</a>
+          </span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">You don’t have any wallets yet. Add the cash you carry or a bank card below.</p>
+  {% endif %}
+
+  <h2>Add a wallet</h2>
+  <form class="stack" method="post" action="{{ url_for('ledger.wallets') }}" novalidate>
+    {{ csrf() }}
+    <label>Name
+      <input name="name" maxlength="60" required placeholder="Cash, Monobank card…" value="{{ form.get('name', '') }}"{{ invalid(errors, 'name') }}>
+      {{ error(errors, 'name') }}
+    </label>
+    {{ currency_select(form, errors, currencies) }}
+    <label>Opening balance
+      <input name="opening_balance" inputmode="decimal" value="{{ form.get('opening_balance', '') }}"{{ invalid(errors, 'opening_balance') }}>
+      {{ error(errors, 'opening_balance') }}
+    </label>
+    <div><button class="button" type="submit">Add wallet</button></div>
+  </form>
+{% endblock %}

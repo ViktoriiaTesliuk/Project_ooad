@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -67,9 +68,25 @@ def upsert_google_user(subject, email, display_name):
     return result["records"][0][0]["longValue"]
 
 
-def apply_initial_schema():
-    path = Path(__file__).resolve().parent.parent / "migrations" / "001_initial.sql"
-    statements = sqlparse.split(path.read_text(encoding="utf-8"))
+def rows(response):
+    """Decode RDS Data API ``records`` into tuples of plain Python values.
+
+    NULL becomes ``None``; every other field yields its single typed value.
+    Select monetary columns as text and wrap them in ``Decimal``.
+    """
+    return [
+        tuple(None if field.get("isNull") else next(iter(field.values())) for field in record)
+        for record in response.get("records", [])
+    ]
+
+
+@contextmanager
+def transaction():
+    """Run several ``execute`` calls atomically.
+
+    Yields a transaction ID to pass as ``execute(..., transaction_id=...)``.
+    Commits on success and rolls back if the block raises.
+    """
     client, options = _connection()
     transaction_id = client.begin_transaction(**options)["transactionId"]
     transaction_options = {
@@ -78,12 +95,19 @@ def apply_initial_schema():
         "transactionId": transaction_id,
     }
     try:
-        for statement in statements:
-            execute(statement, transaction_id=transaction_id)
+        yield transaction_id
         client.commit_transaction(**transaction_options)
     except Exception:
         try:
             client.rollback_transaction(**transaction_options)
         except Exception:
-            current_app.logger.exception("Could not roll back the schema transaction")
+            current_app.logger.exception("Could not roll back the transaction")
         raise
+
+
+def apply_initial_schema():
+    path = Path(__file__).resolve().parent.parent / "migrations" / "001_initial.sql"
+    statements = sqlparse.split(path.read_text(encoding="utf-8"))
+    with transaction() as transaction_id:
+        for statement in statements:
+            execute(statement, transaction_id=transaction_id)

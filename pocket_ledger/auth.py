@@ -1,16 +1,22 @@
 from functools import wraps
-from secrets import compare_digest, token_urlsafe
+from secrets import token_urlsafe
 
 from authlib.integrations.base_client import OAuthError
 from authlib.integrations.flask_client import OAuth
-from joserfc.errors import JoseError
 from flask import (
-    Blueprint, abort, current_app, g, redirect, render_template, request,
-    session, url_for,
+    Blueprint,
+    abort,
+    current_app,
+    g,
+    redirect,
+    render_template,
+    session,
+    url_for,
 )
+from joserfc.errors import JoseError
 from requests import RequestException
 
-from . import db
+from . import csrf, db
 
 bp = Blueprint("auth", __name__)
 
@@ -44,7 +50,7 @@ def load_current_user():
 @bp.get("/")
 def index():
     if g.user_id is not None:
-        return redirect(url_for("auth.dashboard"))
+        return redirect(url_for("ledger.dashboard"))
     return render_template("sign_in.html")
 
 
@@ -79,22 +85,13 @@ def callback():
     )
     session.clear()
     session["user_id"] = user_id
-    session["logout_token"] = token_urlsafe(32)
-    return redirect(url_for("auth.dashboard"))
-
-
-@bp.get("/dashboard")
-@login_required
-def dashboard():
-    return render_template("dashboard.html")
+    csrf.rotate_token()
+    return redirect(url_for("ledger.dashboard"))
 
 
 @bp.post("/auth/logout")
 @login_required
 def sign_out():
-    token = request.form.get("csrf_token", "")
-    expected = session.get("logout_token")
-    if not expected or not compare_digest(token.encode(), expected.encode()):
-        abort(400, description="Invalid sign-out request.")
+    # The CSRF token is verified for every POST in pocket_ledger.csrf.
     session.clear()
     return redirect(url_for("auth.index"))

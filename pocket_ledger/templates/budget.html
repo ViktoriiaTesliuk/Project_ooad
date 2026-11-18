@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "_field.html" import error, invalid, csrf, currency_select %}
+{% block title %}Budget · Pocket Ledger{% endblock %}
+{% block content %}
+  <h1>Spending limit</h1>
+  <form class="filters" method="get" action="{{ url_for('ledger.budget') }}">
+    <label>Month <input type="month" name="month" value="{{ month|month_param }}" required></label>
+    <div><button class="button secondary" type="submit">Open</button></div>
+  </form>
+
+  <p class="muted">Set the most you plan to spend in {{ month|month_label }}. Only expenses in the limit’s
+    currency count toward it until currency conversion is available.</p>
+
+  <form class="stack" method="post" action="{{ url_for('ledger.budget', month=month|month_param) }}" novalidate>
+    {{ csrf() }}
+    <label>Limit
+      <input name="amount" inputmode="decimal" required value="{{ form.get('amount', '') }}"{{ invalid(errors, 'amount') }}>
+      {{ error(errors, 'amount') }}
+    </label>
+    {{ currency_select(form, errors, currencies) }}
+    <div class="actions">
+      <button class="button" type="submit">Save limit</button>
+      {% if current %}
+        <button class="button danger" type="submit" name="action" value="remove" formnovalidate>Remove limit</button>
+      {% endif %}
+    </div>
+  </form>
+{% endblock %}
