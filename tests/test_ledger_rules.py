@@ -24,6 +24,7 @@ def context():
     ("125,5", Decimal("125.50")),
     ("1 234,50", Decimal("1234.50")),
     ("1,234.50", Decimal("1234.50")),
+    ("1.234,50", Decimal("1234.50")),
     ("0.1", Decimal("0.10")),
     (12.5, Decimal("12.50")),
 ])
@@ -31,7 +32,7 @@ def test_parse_amount_accepts_common_formats(text, expected):
     assert ledger.parse_amount(text) == expected
 
 
-@pytest.mark.parametrize("text", ["", "abc", "0", "-5", "1.005", "NaN", "Infinity", "1e20"])
+@pytest.mark.parametrize("text", ["", "abc", "0", "-5", "1.005", "NaN", "Infinity", "1e20", "1,00.00", "1.00,00"])
 def test_parse_amount_rejects_invalid_values(text):
     with pytest.raises(ValueError):
         ledger.parse_amount(text)

@@ -1,0 +1,77 @@
+{% macro bars(chart, title, currency, daily=false) %}
+  <section class="card analytics-card">
+    <h2>{{ title }}</h2>
+    {% if not daily %}
+      <p class="chart-keys"><span class="income">● Income</span> <span class="expense">● Expenses</span></p>
+    {% endif %}
+    {% if chart.ticks %}
+      <div class="chart-plot" aria-hidden="true">
+        <div class="chart-axis">
+          {% for height, label in chart.ticks %}
+            <span style="--level: {{ height }}%">{{ label }}</span>
+          {% endfor %}
+        </div>
+        <div class="chart-columns">
+          {% for height, label in chart.ticks %}<i class="chart-gridline" style="--level: {{ height }}%"></i>{% endfor %}
+          {% for date, label, values in chart.points %}
+            <div class="chart-column" title="{{ date }}{% for kind, amount, height in values %} · {{ kind|capitalize }} {{ amount|money(currency) }}{% endfor %}">
+              {% for kind, amount, height in values %}
+                <span class="chart-bar {{ 'daily' if daily else kind }}{% if amount %} has-value{% endif %}" style="--height: {{ height }}%"></span>
+              {% endfor %}
+              {% if not daily or loop.first or loop.last or loop.index % 5 == 0 %}<small>{{ label }}</small>{% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+      <p class="muted small chart-unit">{{ currency }}</p>
+    {% else %}
+      <p class="muted">{{ 'No expenses in this month.' if daily else 'No income or expenses in this period.' }}</p>
+    {% endif %}
+    <details class="chart-values">
+      <summary>{{ 'Daily amounts' if daily else 'Monthly amounts' }} ({{ currency }})</summary>
+      <table>
+        <thead><tr><th scope="col">{{ 'Date' if daily else 'Month' }}</th>{% if not daily %}<th scope="col">Income</th>{% endif %}<th scope="col">Expenses</th></tr></thead>
+        <tbody>
+          {% for date, label, values in chart.points %}
+            <tr><th scope="row">{{ date }}</th>{% for kind, amount, height in values %}<td>{{ amount|money }}</td>{% endfor %}</tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </details>
+  </section>
+{% endmacro %}
+
+{% macro categories(totals, month, currency) %}
+  <section class="card analytics-card">
+    <h2>Expenses by category</h2>
+    {% if totals and totals.categories %}
+      <div class="category-layout">
+        <svg class="category-donut" viewBox="0 0 120 120" role="img" aria-label="Expenses by category">
+          <circle cx="60" cy="60" r="46" fill="none" stroke="var(--panel)" stroke-width="16"></circle>
+          {% set arc = namespace(offset=0) %}
+          {% for spend in totals.categories %}
+            {% set percent = spend.amount / totals.expenses * 100 %}
+            <circle cx="60" cy="60" r="46" pathLength="100" fill="none" stroke="{{ category_color(spend.name) }}"
+                    stroke-width="16" stroke-dasharray="{{ percent }} {{ 100 - percent }}"
+                    stroke-dashoffset="{{ -arc.offset }}" transform="rotate(-90 60 60)">
+              <title>{{ spend.name }} · {{ spend.amount|money(currency) }} · {{ spend.share }}%</title>
+            </circle>
+            {% set arc.offset = arc.offset + percent %}
+          {% endfor %}
+        </svg>
+        <ul class="category-legend">
+          {% for spend in totals.categories %}
+            <li style="--cat: {{ category_color(spend.name) }}">
+              <a href="{{ url_for('ledger.transactions', month=month|month_param, category=spend.category_id) }}">
+                <span class="dot" aria-hidden="true"></span>{{ spend.name }}
+              </a>
+              <span class="amount">{{ spend.amount|money(currency) }}<small class="muted">{{ '<0.1' if spend.share == 0 else spend.share }}%</small></span>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% else %}
+      <p class="muted">No expenses in {{ month|month_label }}.</p>
+    {% endif %}
+  </section>
+{% endmacro %}

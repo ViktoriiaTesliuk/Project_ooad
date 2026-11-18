@@ -1,11 +1,12 @@
 {% extends "base.html" %}
 {% from "_field.html" import csrf %}
+{% from "_analytics.html" import bars, categories with context %}
 {% block title %}Dashboard · Pocket Ledger{% endblock %}
 {% block content %}
   <div class="month-switch" style="margin-top: 1.25rem">
-    <a href="{{ url_for('ledger.dashboard', month=previous_month|month_param, currency=currency) }}" aria-label="Previous month">←</a>
+    {% if previous_month.year >= 1900 %}<a href="{{ url_for('ledger.dashboard', month=previous_month|month_param, currency=currency) }}" aria-label="Previous month">←</a>{% else %}<span></span>{% endif %}
     <h1>{{ month|month_label }}</h1>
-    <a href="{{ url_for('ledger.dashboard', month=next_month|month_param, currency=currency) }}" aria-label="Next month">→</a>
+    {% if next_month.year <= 2100 %}<a href="{{ url_for('ledger.dashboard', month=next_month|month_param, currency=currency) }}" aria-label="Next month">→</a>{% else %}<span></span>{% endif %}
   </div>
 
   {% if not wallets %}
@@ -75,21 +76,16 @@
         {% endif %}
       </section>
 
-      <section class="card">
-        <h2 style="margin-top: 0">Spending by category</h2>
-        {% if totals and totals.categories %}
-          {% for spend in totals.categories %}
-            <div class="bar" style="--cat: {{ category_color(spend.name) }}">
-              <a href="{{ url_for('ledger.transactions', month=month|month_param, category=spend.category_id) }}"><span class="dot" aria-hidden="true"></span>{{ spend.name }}</a>
-              <div class="track"><span style="width: {{ spend.share }}%"></span></div>
-              <span class="amount">{{ spend.amount|money }} <span class="muted">· {{ spend.share }}%</span></span>
-            </div>
-          {% endfor %}
-        {% else %}
-          <p class="muted">No expenses in {{ month|month_label }}{{ ' yet' if is_current_month }}.</p>
-          <a class="button secondary small" href="{{ url_for('ledger.new_transaction', kind='expense') }}">Add an expense</a>
-        {% endif %}
-      </section>
+      {% include "_exchange_card.html" %}
+    </div>
+
+    {% if missing_history %}
+      <p class="notice">The six-month chart omits amounts in {{ missing_history|join(', ') }} where rates are unavailable.</p>
+    {% endif %}
+    <div class="analytics-grid">
+      {{ categories(totals, month, currency) }}
+      {{ bars(monthly, 'Income vs expenses (6 months)', currency) }}
+      {{ bars(daily, 'Daily spending · ' ~ (month|month_label), currency, daily=true) }}
     </div>
 
     <div class="page-head">
@@ -107,6 +103,7 @@
     <p class="muted small">Wallets keep their own currency. Dashboard totals and the budget are converted to {{ currency }}.</p>
 
     {% if rates %}
+      <p class="muted small">Converted totals use the latest available rates, including for past months.</p>
       <p class="muted small">
         Latest available rates:
         {% for rate in rates %}

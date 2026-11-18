@@ -287,7 +287,7 @@ def test_demo_data_only_fills_an_empty_account(pg, app, google):
     loaded = browser.post("/demo", {}, page=browser.get("/dashboard"))
     assert browser.follow(loaded)["statusCode"] == 200
     assert "Added 3 sample wallets" in browser.last["text"]
-    assert "Everyday card" in browser.last["text"] and "Spending by category" in browser.last["text"]
+    assert "Everyday card" in browser.last["text"] and "Expenses by category" in browser.last["text"]
     transactions = count(pg, "SELECT COUNT(*) FROM transactions")
     assert transactions >= 3
     again = browser.request("POST", "/demo", form={"csrf_token": browser.csrf()})

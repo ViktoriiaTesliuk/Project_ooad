@@ -16,6 +16,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+from zoneinfo import ZoneInfo
 
 from . import db
 
@@ -153,7 +154,12 @@ def parse_amount(value, *, positive=True):
         # Strings from forms and CSV cells; floats from JSON drafts go through str().
         text = str(value if value is not None else "").strip().replace(" ", "").replace(" ", "")
         if "," in text and "." in text:
-            text = text.replace(",", "")
+            if re.fullmatch(r"[+-]?\d{1,3}(?:,\d{3})+\.\d{1,2}", text):
+                text = text.replace(",", "")
+            elif re.fullmatch(r"[+-]?\d{1,3}(?:\.\d{3})+,\d{1,2}", text):
+                text = text.replace(".", "")
+            else:
+                raise ValueError("Check the thousands and decimal separators.")
         text = text.replace(",", ".")
         if not text:
             raise ValueError("Enter an amount.")
@@ -193,13 +199,13 @@ def parse_month(value, *, default=None):
     if value is None or str(value).strip() == "":
         return default
     match = _MONTH.match(str(value).strip())
-    if not match or not 1 <= int(match[2]) <= 12:
+    if not match or not 1900 <= int(match[1]) <= 2100 or not 1 <= int(match[2]) <= 12:
         raise ValueError("Choose a month as YYYY-MM.")
     return date(int(match[1]), int(match[2]), 1)
 
 
 def current_month():
-    return date.today().replace(day=1)
+    return datetime.now(ZoneInfo("Europe/Kyiv")).date().replace(day=1)
 
 
 def next_month(month_start):
