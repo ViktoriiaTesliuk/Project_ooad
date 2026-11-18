@@ -1,33 +1,58 @@
 {% extends "base.html" %}
-{% from "_field.html" import error, invalid, csrf %}
+{% from "_field.html" import error, invalid, error_summary, csrf %}
 {% block title %}{{ 'Edit' if record else 'New' }} transaction · Pocket Ledger{% endblock %}
 {% block content %}
   <h1>{{ 'Edit transaction' if record else 'New transaction' }}</h1>
+
+  {% if not record %}
+    {% if ai_enabled %}
+      <form class="assist" method="post" action="{{ url_for('ledger.suggest_transaction') }}">
+        {{ csrf() }}
+        <h2>Draft an expense from a sentence</h2>
+        <label for="ai_text">Describe the expense
+          <span class="hint">Only this text and the expense category names are sent to Gemini.</span>
+          <input id="ai_text" name="ai_text" maxlength="500" placeholder="185 for lunch with colleagues"
+                 value="{{ ai_text }}"{{ invalid({'ai_text': ai_error} if ai_error else {}, 'ai_text') }}>
+          {% if ai_error %}<span class="error" id="ai_text-error">{{ ai_error }}</span>{% endif %}
+        </label>
+        <div><button class="button secondary" type="submit">Fill the form</button></div>
+      </form>
+    {% endif %}
+    {% if ai_ready %}
+      <p class="notice" role="status">Review the draft from Gemini. Check every field, including the wallet and its currency, before you select <strong>Add transaction</strong>. Nothing is saved yet.</p>
+    {% endif %}
+  {% endif %}
+
+  {{ error_summary(errors, {'kind': 'Type', 'wallet_id': 'Wallet', 'category_id': 'Category', 'occurred_on': 'Date'}) }}
+
   <form class="stack" method="post" action="{{ url_for('ledger.edit_transaction', record_id=record.id) if record else url_for('ledger.new_transaction') }}" novalidate>
     {{ csrf() }}
-    <fieldset role="radiogroup" aria-label="Type">
-      {% for kind, label in [('expense', 'Expense'), ('income', 'Income')] %}
-        <label><input type="radio" name="kind" value="{{ kind }}"{% if form.get('kind') == kind %} checked{% endif %}> {{ label }}</label>
-      {% endfor %}
+    <fieldset id="kind" aria-label="Type">
+      <div class="segmented">
+        {% for kind, label in [('expense', 'Expense'), ('income', 'Income')] %}
+          <label><input type="radio" name="kind" value="{{ kind }}"{% if form.get('kind') == kind %} checked{% endif %}><span>{{ label }}</span></label>
+        {% endfor %}
+      </div>
+      {{ error(errors, 'kind') }}
     </fieldset>
-    {{ error(errors, 'kind') }}
 
-    <label>Amount
-      <input name="amount" inputmode="decimal" required autofocus value="{{ form.get('amount', '') }}"{{ invalid(errors, 'amount') }}>
+    <label for="amount">Amount <span class="hint">In the wallet’s currency, for example 125.50</span>
+      <input id="amount" name="amount" inputmode="decimal" autocomplete="off" required{% if not form.get('amount') %} autofocus{% endif %}
+             value="{{ form.get('amount', '') }}"{{ invalid(errors, 'amount') }}>
       {{ error(errors, 'amount') }}
     </label>
 
-    <label>Wallet
-      <select name="wallet_id" required{{ invalid(errors, 'wallet_id') }}>
+    <label for="wallet_id">Wallet
+      <select id="wallet_id" name="wallet_id" required{{ invalid(errors, 'wallet_id') }}>
         {% for wallet in wallets %}
-          <option value="{{ wallet.id }}"{% if form.get('wallet_id')|string == wallet.id|string %} selected{% endif %}>{{ wallet.name }} ({{ wallet.currency }})</option>
+          <option value="{{ wallet.id }}"{% if form.get('wallet_id')|string == wallet.id|string %} selected{% endif %}>{{ wallet.name }} · {{ wallet.currency }}</option>
         {% endfor %}
       </select>
       {{ error(errors, 'wallet_id') }}
     </label>
 
-    <label>Category
-      <select name="category_id" required{{ invalid(errors, 'category_id') }}>
+    <label for="category_id">Category
+      <select id="category_id" name="category_id" required{{ invalid(errors, 'category_id') }}>
         {% for kind, label in [('expense', 'Expense categories'), ('income', 'Income categories')] %}
           <optgroup label="{{ label }}" data-kind="{{ kind }}">
             {% for category in categories if category.kind == kind %}
@@ -39,42 +64,41 @@
       {{ error(errors, 'category_id') }}
     </label>
 
-    <label>Date
-      <input type="date" name="occurred_on" required value="{{ form.get('occurred_on', '') }}"{{ invalid(errors, 'occurred_on') }}>
+    <label for="occurred_on">Date
+      <input type="date" id="occurred_on" name="occurred_on" required value="{{ form.get('occurred_on', '') }}"{{ invalid(errors, 'occurred_on') }}>
       {{ error(errors, 'occurred_on') }}
     </label>
 
-    <label>Description
-      <input name="description" maxlength="500" placeholder="Optional" value="{{ form.get('description', '') }}"{{ invalid(errors, 'description') }}>
+    <label for="description">Description <span class="hint">Optional</span>
+      <input id="description" name="description" maxlength="500" value="{{ form.get('description', '') }}"{{ invalid(errors, 'description') }}>
       {{ error(errors, 'description') }}
     </label>
 
     <div class="actions">
       <button class="button" type="submit">{{ 'Save changes' if record else 'Add transaction' }}</button>
-      <a href="{{ url_for('ledger.transactions') }}">Cancel</a>
+      <a class="button secondary" href="{{ url_for('ledger.transactions') }}">Cancel</a>
     </div>
-    {% if not record %}
-      <label>Describe an expense
-        <input name="ai_text" maxlength="500" placeholder="185 for lunch" value="{{ ai_text }}">
-        {{ error(errors, 'ai_text') }}
-      </label>
-      <button class="button secondary" type="submit" formaction="{{ url_for('ledger.suggest_transaction') }}">Fill from text</button>
-      {% if ai_ready %}<p class="notice">Review the draft, including the wallet and its currency, before saving.</p>{% endif %}
-    {% endif %}
   </form>
 
   {% if record %}
-    <form method="post" action="{{ url_for('ledger.delete_transaction', record_id=record.id) }}"
-          onsubmit="return confirm('Delete this transaction?')">
-      {{ csrf() }}
-      <button class="button danger small" type="submit">Delete transaction</button>
-    </form>
+    <details class="confirm">
+      <summary>Delete this transaction</summary>
+      <div>
+        <p>Delete <strong>{{ record.amount|money(record.currency) }}</strong>
+          {{ 'income' if record.kind == 'income' else 'expense' }}{% if record.description %} “{{ record.description }}”{% endif %}
+          from {{ record.wallet_name }} on {{ record.occurred_on.isoformat() }}? The wallet balance and budget update immediately. This can’t be undone.</p>
+        <form method="post" action="{{ url_for('ledger.delete_transaction', record_id=record.id) }}">
+          {{ csrf() }}
+          <button class="button danger" type="submit">Yes, delete it</button>
+        </form>
+      </div>
+    </details>
   {% endif %}
 
   <script>
     // Show only the categories that match the selected type; the server validates this too.
     (function () {
-      const select = document.querySelector('select[name="category_id"]');
+      const select = document.getElementById('category_id');
       function sync() {
         const kind = document.querySelector('input[name="kind"]:checked')?.value;
         if (!kind) return;

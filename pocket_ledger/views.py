@@ -1,10 +1,23 @@
 """Pages for the dashboard, wallets, transaction history and monthly budget."""
 
+from collections import defaultdict
 from datetime import date
+from decimal import Decimal
+from itertools import groupby
 
-from flask import Blueprint, abort, flash, g, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    flash,
+    g,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 
-from . import fx, gemini, ledger
+from . import demo, fx, gemini, ledger
 from .auth import login_required
 
 bp = Blueprint("ledger", __name__)
@@ -62,6 +75,7 @@ def dashboard():
         unconverted_budget=unconverted_budget,
         wallets=ledger.list_wallets(g.user_id),
         month=month,
+        is_current_month=month == ledger.current_month(),
         previous_month=ledger.previous_month(month),
         next_month=ledger.next_month(month),
     )
@@ -139,12 +153,21 @@ def transactions():
         "wallet_id": _id_arg("wallet"),
         "category_id": _id_arg("category"),
     }
+    records = ledger.list_transactions(g.user_id, **filters)
+    totals = defaultdict(lambda: {"income": Decimal("0.00"), "expense": Decimal("0.00")})
+    for record in records:
+        totals[record.currency][record.kind] += record.amount
+    wallets = ledger.list_wallets(g.user_id)
     return render_template(
         "transactions.html",
-        transactions=ledger.list_transactions(g.user_id, **filters),
-        wallets=ledger.list_wallets(g.user_id),
+        transactions=records,
+        days=[(day, list(items)) for day, items in groupby(records, key=lambda r: r.occurred_on)],
+        totals=sorted(totals.items()),
+        wallets=wallets,
         categories=ledger.list_categories(),
         filters=filters,
+        filtered=any(value is not None for value in filters.values()),
+        limit=ledger.HISTORY_LIMIT,
     )
 
 
@@ -155,17 +178,20 @@ def _transaction_form(template_form, *, record=None, suggest=False):
         return redirect(url_for("ledger.wallets"))
 
     form, errors = template_form, {}
-    ai_text, ai_ready = "", False
+    ai_text, ai_ready, ai_error = "", False, None
     if suggest:
         form = request.form.to_dict()
+        form.pop("csrf_token", None)
         ai_text = form.pop("ai_text", "").strip()
+        form.setdefault("kind", "expense")
+        form.setdefault("occurred_on", date.today().isoformat())
         categories = {item.name: item.id for item in context.categories.values()
                       if item.kind == "expense"}
         try:
             form.update(gemini.suggest(ai_text, categories))
             ai_ready = True
         except gemini.DraftError as error:
-            errors["ai_text"] = str(error)
+            ai_error = str(error)
     elif request.method == "POST":
         form = request.form
         try:
@@ -188,13 +214,15 @@ def _transaction_form(template_form, *, record=None, suggest=False):
     return render_template(
         "transaction_form.html",
         record=record,
+        ai_enabled=bool(current_app.config.get("GEMINI_API_KEY")),
         ai_text=ai_text,
         ai_ready=ai_ready,
+        ai_error=ai_error,
         wallets=list(context.wallets.values()),
         categories=list(context.categories.values()),
         form=form,
         errors=errors,
-    ), 422 if errors else 200
+    ), 422 if errors or ai_error else 200
 
 
 @bp.route("/transactions/new", methods=["GET", "POST"])
@@ -276,3 +304,20 @@ def budget():
 def _default_currency():
     wallets = ledger.list_wallets(g.user_id)
     return wallets[0].currency if wallets else ledger.CURRENCIES[0]
+
+
+# --------------------------------------------------------------------------- demo data
+
+
+@bp.post("/demo")
+@login_required
+def load_demo():
+    """Fill an empty account with synthetic wallets, transactions and a budget."""
+    try:
+        summary = demo.seed(g.user_id)
+    except demo.AccountNotEmpty:
+        flash("Sample data can only be added to an account without wallets.")
+    else:
+        flash(f"Added {summary.wallets} sample wallets and {summary.transactions} transactions. "
+              "Edit or delete them like any other entry.")
+    return redirect(url_for("ledger.dashboard"))

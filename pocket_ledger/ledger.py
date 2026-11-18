@@ -25,6 +25,7 @@ CENT = Decimal("0.01")
 MAX_AMOUNT = Decimal(10) ** 16  # NUMERIC(18, 2)
 MAX_WALLET_NAME = 60
 MAX_DESCRIPTION = 500
+HISTORY_LIMIT = 500
 _MONTH = re.compile(r"^(\d{4})-(\d{2})$")
 
 
@@ -331,7 +332,7 @@ def get_wallet(user_id, wallet_id):
     return _wallet(found[0])
 
 
-def create_wallet(user_id, draft):
+def create_wallet(user_id, draft, *, transaction_id=None):
     result = db.execute(
         """
         INSERT INTO wallets (user_id, name, currency, opening_balance)
@@ -344,6 +345,7 @@ def create_wallet(user_id, draft):
             "currency": draft.currency,
             "opening_balance": draft.opening_balance,
         },
+        transaction_id=transaction_id,
     )
     return db.rows(result)[0][0]
 
@@ -433,7 +435,7 @@ def get_transaction(user_id, record_id):
     return _transaction(found[0])
 
 
-def list_transactions(user_id, *, month=None, wallet_id=None, category_id=None, limit=500):
+def list_transactions(user_id, *, month=None, wallet_id=None, category_id=None, limit=HISTORY_LIMIT):
     """Newest-first history, optionally filtered by month, wallet and category."""
     sql = _TRANSACTION_SELECT
     params = {"user_id": user_id, "limit": limit}
@@ -553,7 +555,7 @@ def parse_budget(data):
     return amount, currency
 
 
-def set_budget(user_id, month_start, amount, currency):
+def set_budget(user_id, month_start, amount, currency, *, transaction_id=None):
     db.execute(
         """
         INSERT INTO monthly_budgets (user_id, month_start, amount, currency)
@@ -562,6 +564,7 @@ def set_budget(user_id, month_start, amount, currency):
         SET amount = EXCLUDED.amount, currency = EXCLUDED.currency
         """,
         {"user_id": user_id, "month_start": month_start, "amount": amount, "currency": currency},
+        transaction_id=transaction_id,
     )
 
 

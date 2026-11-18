@@ -11,7 +11,7 @@ import requests
 from pocket_ledger import db, fx, gemini, ledger
 
 HEADER = b"date,kind,amount,currency,category,description\n"
-EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "transactions.csv"
+EXAMPLE = Path(__file__).resolve().parents[1] / "pocket_ledger" / "static" / "sample-transactions.csv"
 
 
 def _wallet(app, user, currency="UAH"):

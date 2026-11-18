@@ -4,7 +4,7 @@ import click
 from dotenv import load_dotenv
 from flask import Flask, request
 
-from . import auth, csrf, csv_import, db, views
+from . import auth, csrf, csv_import, db, demo, ui, views
 
 
 def create_app(test_config=None):
@@ -33,6 +33,7 @@ def create_app(test_config=None):
         if request.endpoint == "csv_import.preview" and request.method == "POST":
             request.max_content_length = csv_import.MAX_BYTES + 16 * 1024
 
+    ui.init_app(app)
     csrf.init_app(app)
     auth.init_app(app)
     views.init_app(app)
@@ -47,5 +48,20 @@ def create_app(test_config=None):
         """Apply the PostgreSQL schema migrations."""
         db.apply_initial_schema()
         click.echo("Schema migrations applied.")
+
+    @app.cli.command("seed-demo")
+    @click.argument("email")
+    def seed_demo_command(email):
+        """Add synthetic sample data to the empty account that signed in with EMAIL."""
+        found = db.rows(db.execute(
+            "SELECT id FROM users WHERE lower(email) = lower(:email)", {"email": email}
+        ))
+        if len(found) != 1:
+            raise click.ClickException("Sign in once with that Google account first.")
+        try:
+            summary = demo.seed(found[0][0])
+        except demo.AccountNotEmpty as error:
+            raise click.ClickException(str(error)) from error
+        click.echo(f"Added {summary.wallets} wallets and {summary.transactions} transactions.")
 
     return app

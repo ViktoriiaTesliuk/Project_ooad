@@ -20,6 +20,7 @@ flowchart LR
         URL --> App
         App --> Data --> DB
         Secrets -. "Database credentials" .-> Data
+        Secrets -. "App secrets at cold start" .-> App
     end
 
     User --> URL
