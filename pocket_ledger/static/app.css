@@ -424,13 +424,30 @@ details.confirm > div { padding: 0 var(--card-padding) var(--card-padding); }
 .category-legend li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: .4rem; padding-block: .35rem; border-bottom: 1px solid var(--line); font-size: .85rem; }
 .category-legend a, .category-legend .amount { white-space: normal; overflow-wrap: anywhere; }
 .category-legend .amount small { display: block; }
-.quote-values { display: flex; gap: 1.5rem; margin-block: .65rem .25rem; }
-.quote-values dt { font-size: .75rem; color: var(--muted); }
-.quote-values dd { margin: 0; font-weight: 650; font-variant-numeric: tabular-nums; }
-.quote-converter { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: .45rem; align-items: center; }
-.quote-converter label, .quote-converter p { grid-column: 1 / -1; }
-.quote-converter output { font-weight: 650; color: var(--income); overflow-wrap: anywhere; }
-.exchange-card select { max-width: 8rem; }
+.exchange-card { align-self: start; display: grid; gap: .95rem; padding: 1rem; }
+.exchange-head { display: flex; gap: .55rem 1rem; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+.exchange-head h2 { margin: 0; font-size: 1.05rem; }
+.exchange-source, .quote-caption, .quote-meta, .quote-converter-head { color: var(--muted); font-size: .8rem; }
+.exchange-source { margin: .15rem 0 0; }
+.quote-tabs { display: inline-flex; gap: .15rem; padding: .15rem; background: var(--panel); border: 1px solid var(--line); border-radius: .65rem; }
+.quote-tabs label { position: relative; cursor: pointer; }
+.quote-tabs label > span { display: block; white-space: nowrap; padding: .25rem .4rem; border: 1px solid transparent; border-radius: .48rem; color: var(--muted); font-size: .75rem; }
+.quote-tabs input:checked + span { background: var(--surface); border-color: var(--line); color: var(--ink); }
+.quote-tabs input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+.exchange-panel { background: var(--panel); border: 1px solid var(--line); border-radius: .75rem; padding: .7rem .8rem; }
+.quote-caption { margin: 0; }
+.quote-buy { margin: .12rem 0; color: var(--income); font-size: 1.65rem; font-weight: 750; line-height: 1.15; }
+.quote-sell { color: var(--accent); }
+.quote-meta { margin: .45rem 0 0; font-size: .72rem; }
+.quote-converter-head { display: flex; flex-wrap: wrap; gap: .25rem .6rem; justify-content: space-between; align-items: center; margin-bottom: .45rem; }
+.quote-converter-head label { color: inherit; font-size: inherit; }
+.quote-fields { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: .4rem; align-items: stretch; }
+.quote-field { min-width: 0; display: flex; align-items: center; gap: .25rem; border: 1px solid var(--line); border-radius: .55rem; padding-right: .45rem; background: var(--surface); font-variant-numeric: tabular-nums; }
+.quote-field input { min-width: 0; width: 100%; min-height: 2.35rem; padding: .25rem .45rem; background: transparent; border: 0; }
+.quote-field > span { color: var(--muted); font-size: .72rem; }
+.quote-output { justify-content: space-between; padding-left: .45rem; background: var(--color-bg); }
+.quote-output output { color: var(--income); font-weight: 650; min-width: 0; overflow-wrap: anywhere; }
+.quote-fields #quote-swap { min-width: 2.2rem; padding-inline: .4rem; }
 @media (max-width: 26rem) {
   .category-layout { grid-template-columns: 1fr; }
   .category-donut { max-width: 7rem; }

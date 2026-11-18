@@ -1,30 +1,50 @@
 <section class="card analytics-card exchange-card" aria-labelledby="exchange-heading">
-  <h2 id="exchange-heading">Exchange rates</h2>
-  <label for="quote-currency">Currency against UAH</label>
-  <select id="quote-currency">
-    {% for code, rate in rate_options.items() %}
-      <option value="{{ code }}"{% if rate %} data-buy="{{ "{:.12f}".format(rate.value) }}" data-sell="{{ "{:.12f}".format(rate.sell_value or rate.value) }}"{% endif %}>{{ code }}</option>
-    {% endfor %}
-  </select>
+  {% set flags = {'USD': '🇺🇸', 'EUR': '🇪🇺', 'PLN': '🇵🇱'} %}
+  <div class="exchange-head">
+    <div>
+      <h2 id="exchange-heading"><span data-quote-flag aria-hidden="true">🇺🇸</span> Exchange Rates</h2>
+      <p class="exchange-source">Monobank / NBU API (UAH)</p>
+    </div>
+    <fieldset class="quote-tabs" id="quote-currency">
+      <legend class="visually-hidden">Currency against UAH</legend>
+      {% for code, rate in rate_options.items() %}
+        <label>
+          <input class="visually-hidden" type="radio" name="quote-currency" value="{{ code }}"
+                 data-flag="{{ flags[code] }}"{% if loop.first %} checked{% endif %}
+                 {% if rate %} data-buy="{{ "{:.12f}".format(rate.value) }}" data-sell="{{ "{:.12f}".format(rate.sell_value or rate.value) }}"{% endif %}>
+          <span><span aria-hidden="true">{{ flags[code] }}</span> {{ code }}</span>
+        </label>
+      {% endfor %}
+    </fieldset>
+  </div>
   {% for code, rate in rate_options.items() %}
-    <div data-quote="{{ code }}"{% if not loop.first %} hidden{% endif %}>
+    <div class="exchange-panel exchange-quote" data-quote="{{ code }}"{% if not loop.first %} hidden{% endif %}>
       {% if rate %}
-        <dl class="quote-values">
-          <div><dt>Buy</dt><dd>{{ rate.value|money('UAH') }}</dd></div>
-          <div><dt>Sell</dt><dd>{{ (rate.sell_value or rate.value)|money('UAH') }}</dd></div>
-        </dl>
-        <p class="muted small">{{ rate.source }}{% if rate.cached %} · Cached{% endif %} · Updated <time datetime="{{ rate.fetched_at.isoformat() }}">{{ rate.fetched_at.strftime('%d %b, %H:%M %Z') }}</time></p>
+        <p class="quote-caption">Buy / Sell</p>
+        <p class="quote-buy" aria-label="Buy rate {{ rate.value|money('UAH') }}">{{ rate.value|money('₴') }}</p>
+        <p class="quote-caption">Sell: <strong class="quote-sell">{{ (rate.sell_value or rate.value)|money('₴') }}</strong></p>
+        <p class="quote-meta">{{ rate.source }}{% if rate.cached %} · Cached{% endif %} · Updated <time datetime="{{ rate.fetched_at.isoformat() }}">{{ rate.fetched_at.strftime('%d %b, %H:%M %Z') }}</time></p>
       {% else %}
-        <p class="muted">No {{ code }}/UAH quote available.</p>
+        <p class="quote-caption" role="status">No {{ code }}/UAH quote available.</p>
       {% endif %}
     </div>
   {% endfor %}
-  <div class="quote-converter">
-    <label for="quote-amount">Amount in <span data-quote-from>USD</span></label>
-    <input id="quote-amount" inputmode="decimal" maxlength="19" placeholder="0.00">
-    <button class="button secondary small" id="quote-swap" type="button" aria-label="Swap conversion direction">⇄</button>
-    <output id="quote-result" for="quote-amount quote-currency" aria-live="polite">—</output>
-    <p class="muted small" data-quote-direction>USD to UAH · Buy rate</p>
+  <div class="exchange-panel quote-converter">
+    <div class="quote-converter-head">
+      <label for="quote-amount">Quick Converter<span class="visually-hidden">, amount in <span data-quote-from>USD</span></span></label>
+      <span data-quote-direction>At buy rate</span>
+    </div>
+    <div class="quote-fields">
+      <div class="quote-field">
+        <input id="quote-amount" inputmode="decimal" maxlength="19" placeholder="0.00" value="100">
+        <span data-quote-input-code aria-hidden="true">USD</span>
+      </div>
+      <button class="button secondary small" id="quote-swap" type="button" aria-label="Swap conversion direction">⇄</button>
+      <div class="quote-field quote-output">
+        <output id="quote-result" for="quote-amount" aria-live="polite">—</output>
+        <span data-quote-target aria-hidden="true">UAH</span>
+      </div>
+    </div>
   </div>
 </section>
 <script src="{{ static_url('exchange-card.js') }}" defer></script>
