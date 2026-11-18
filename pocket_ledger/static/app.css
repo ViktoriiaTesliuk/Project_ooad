@@ -453,3 +453,10 @@ details.confirm > div { padding: 0 var(--card-padding) var(--card-padding); }
   .category-donut { max-width: 7rem; }
   .chart-column { padding-inline: 1px; }
 }
+
+ul.rows li.skipped { opacity: .55; }
+ul.rows li.skipped .amount { text-decoration: line-through; }
+
+.sample-banner { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; justify-content: space-between; margin: var(--space-5) 0 0;
+  padding: .8rem 1rem; border: 1px solid rgb(234 179 8 / .3); border-radius: var(--radius-control); background: var(--color-warning-soft); color: var(--color-warning-text); }
+.sample-banner p { margin: 0; }

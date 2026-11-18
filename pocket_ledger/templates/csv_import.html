@@ -50,8 +50,13 @@
       {% if token %}<a class="small" href="{{ url_for('csv_import.preview') }}">Choose another file</a>{% endif %}
     </div>
     {% if summary.invalid %}
-      <p class="notice" role="alert">{{ summary.invalid }} of {{ summary.rows }} rows need changes. Correct the marked rows in the file and upload it again. Nothing has been imported.</p>
+      <p class="notice" role="alert">{{ summary.invalid }} of {{ rows|length }} rows need changes. Correct the marked rows in the file and upload it again. Nothing has been imported.</p>
+    {% elif not token %}
+      <p class="notice" role="status">Everything in this file is already in <strong>{{ wallet.name }}</strong>. Nothing new to import.</p>
     {% else %}
+      {% if summary.duplicates %}
+        <p class="notice" role="status">{{ summary.duplicates }} row{{ ' is' if summary.duplicates == 1 else 's are' }} already in <strong>{{ wallet.name }}</strong> (same type, date, amount and description) and will be skipped, so nothing is counted twice.</p>
+      {% endif %}
       <div class="kpis">
         <div class="kpi"><span class="label">Rows to import</span><span class="value">{{ summary.rows }}</span></div>
         <div class="kpi"><span class="label">{{ summary.expenses }} expense{{ '' if summary.expenses == 1 else 's' }}</span>
@@ -62,12 +67,14 @@
     {% endif %}
     <ul class="rows">
       {% for number, row, draft, errors in rows %}
-        <li class="{{ 'invalid' if errors }}">
+        {% set skipped = number in duplicates %}
+        <li class="{{ 'invalid' if errors }}{{ ' skipped' if skipped }}">
           <span class="main-col">
             <strong>{{ row.get('description') or row.get('category') or 'Transaction' }}</strong>
             {% set category_name = categories.get(draft.category_id) if draft else row.get('category') %}
             <span class="small row-meta"><span class="muted">Row {{ number }} · {{ row.get('date') }} ·</span><span class="tag" style="--cat: {{ category_color(category_name) }}">{{ category_name }}</span></span>
             {% for field, message in errors.items() %}<span class="row-error">{{ message }}</span>{% endfor %}
+            {% if skipped %}<span class="small muted">Already in this wallet · will be skipped</span>{% endif %}
           </span>
           {% if draft %}
             <span class="amount {{ draft.kind }}">{{ '+' if draft.kind == 'income' else '−' }}{{ draft.amount|money(wallet.currency) }}</span>
@@ -81,7 +88,7 @@
       <form method="post" action="{{ url_for('csv_import.save') }}" class="card" style="margin-top: 1rem">
         {{ csrf() }}
         <input type="hidden" name="token" value="{{ token }}">
-        <p style="margin-top: 0">Add these {{ summary.rows }} transactions to <strong>{{ wallet.name }}</strong>? Its balance and your budget will update. You can edit or delete them afterwards.</p>
+        <p style="margin-top: 0">Add {{ 'this transaction' if summary.rows == 1 else 'these ' ~ summary.rows ~ ' transactions' }} to <strong>{{ wallet.name }}</strong>? Its balance and your budget will update. You can edit or delete them afterwards.</p>
         <div class="actions" style="margin-bottom: 0">
           <button class="button" type="submit">Confirm import</button>
           <a class="button secondary" href="{{ url_for('csv_import.preview') }}">Cancel</a>

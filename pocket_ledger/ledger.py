@@ -204,8 +204,13 @@ def parse_month(value, *, default=None):
     return date(int(match[1]), int(match[2]), 1)
 
 
+def today():
+    """Today's date in Kyiv. The server runs in UTC, which is a day behind just after midnight."""
+    return datetime.now(ZoneInfo("Europe/Kyiv")).date()
+
+
 def current_month():
-    return datetime.now(ZoneInfo("Europe/Kyiv")).date().replace(day=1)
+    return today().replace(day=1)
 
 
 def next_month(month_start):
@@ -608,7 +613,7 @@ def set_budget(user_id, month_start, amount, currency, *, transaction_id=None):
         INSERT INTO monthly_budgets (user_id, month_start, amount, currency)
         VALUES (:user_id, :month_start, :amount, :currency)
         ON CONFLICT (user_id, month_start) DO UPDATE
-        SET amount = EXCLUDED.amount, currency = EXCLUDED.currency
+        SET amount = EXCLUDED.amount, currency = EXCLUDED.currency, is_sample = false
         """,
         {"user_id": user_id, "month_start": month_start, "amount": amount, "currency": currency},
         transaction_id=transaction_id,
@@ -747,3 +752,54 @@ def month_summary(user_id, month_start):
         [(currency, cid, name, Decimal(amount)) for currency, cid, name, amount in by_category],
         get_budget(user_id, month_start),
     )
+
+
+# --------------------------------------------------------------------------- sample data
+
+
+def has_sample_data(user_id):
+    found = db.rows(db.execute(
+        """
+        SELECT EXISTS (SELECT 1 FROM wallets WHERE user_id = :user_id AND is_sample)
+            OR EXISTS (SELECT 1 FROM monthly_budgets WHERE user_id = :user_id AND is_sample)
+        """,
+        {"user_id": user_id},
+    ))
+    return bool(found and found[0][0])
+
+
+def remove_sample_data(user_id):
+    """Delete sample entries and limits, and sample wallets that have nothing else in them.
+
+    A sample wallet that also holds the user's own entries is kept (with those entries)
+    and stops being marked as sample. Returns what was removed and kept.
+    """
+    params = {"user_id": user_id}
+    with db.transaction() as transaction_id:
+        entries = db.rows(db.execute(
+            """
+            DELETE FROM transactions AS t USING wallets AS w
+            WHERE w.id = t.wallet_id AND w.user_id = :user_id AND t.is_sample
+            RETURNING t.id
+            """,
+            params, transaction_id=transaction_id,
+        ))
+        budgets = db.rows(db.execute(
+            "DELETE FROM monthly_budgets WHERE user_id = :user_id AND is_sample RETURNING month_start",
+            params, transaction_id=transaction_id,
+        ))
+        removed = db.rows(db.execute(
+            """
+            DELETE FROM wallets AS w
+            WHERE w.user_id = :user_id AND w.is_sample
+              AND NOT EXISTS (SELECT 1 FROM transactions AS t WHERE t.wallet_id = w.id)
+            RETURNING w.name
+            """,
+            params, transaction_id=transaction_id,
+        ))
+        kept = db.rows(db.execute(
+            "UPDATE wallets SET is_sample = false WHERE user_id = :user_id AND is_sample RETURNING name",
+            params, transaction_id=transaction_id,
+        ))
+    return {"entries": len(entries), "budgets": len(budgets),
+            "removed": sorted(name for (name,) in removed), "kept": sorted(name for (name,) in kept)}

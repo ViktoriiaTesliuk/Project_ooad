@@ -16,10 +16,9 @@ import base64
 import hashlib
 import json
 from collections import defaultdict
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from secrets import token_urlsafe
-from zoneinfo import ZoneInfo
 
 from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, session, url_for
 
@@ -28,7 +27,6 @@ from .auth import login_required
 
 bp = Blueprint("ai", __name__, url_prefix="/ai/expenses")
 
-KYIV = ZoneInfo("Europe/Kyiv")
 DEFAULT_DAILY_LIMIT = 30
 MAX_TEXT = 500
 MAX_IMAGE_BYTES = 4 * 1024 * 1024
@@ -112,7 +110,7 @@ class RowErrors(ValueError):
 
 
 def today_kyiv():
-    return datetime.now(KYIV).date()
+    return ledger.today()
 
 
 def daily_limit():
