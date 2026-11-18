@@ -5,11 +5,17 @@
 {% block content %}
   <h1>{{ 'Edit transaction' if record else 'New transaction' }}</h1>
 
-  {% if not record %}{{ ai_box('new') }}{% endif %}
+  {% if not record %}
+    <div class="actions entry-options">
+      <a class="button secondary small" href="#manual-entry">Manual entry</a>
+      {% if config.GEMINI_API_KEY %}<a class="button secondary small" href="#assisted-entry">AI &amp; receipt scan</a>{% endif %}
+    </div>
+    <div id="assisted-entry">{{ ai_box('new') }}</div>
+  {% endif %}
 
   {{ error_summary(errors, {'kind': 'Type', 'wallet_id': 'Wallet', 'category_id': 'Category', 'occurred_on': 'Date'}) }}
 
-  <form class="stack" method="post" action="{{ url_for('ledger.edit_transaction', record_id=record.id) if record else url_for('ledger.new_transaction') }}" novalidate>
+  <form id="manual-entry" class="stack" method="post" action="{{ url_for('ledger.edit_transaction', record_id=record.id) if record else url_for('ledger.new_transaction') }}" novalidate>
     {{ csrf() }}
     <fieldset id="kind" aria-label="Type">
       <div class="segmented">

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_field.html" import csrf %}
 {% block title %}History · Pocket Ledger{% endblock %}
 {% block content %}
   <div class="page-head">
@@ -63,6 +64,9 @@
               <span class="small row-meta"><span class="tag" style="--cat: {{ category_color(t.category_name) }}">{{ t.category_name }}</span><span class="muted">· {{ t.wallet_name }}</span></span>
             </a>
             <span class="amount {{ t.kind }}">{{ '+' if t.kind == 'income' else '−' }}{{ t.amount|money(t.currency) }}</span>
+            <a class="delete-link" data-delete-name="{{ t.description or t.category_name }}"
+               href="{{ url_for('ledger.delete_transaction', record_id=t.id) }}"
+               aria-label="Delete {{ t.description or t.category_name }}">Delete</a>
           </li>
         {% endfor %}
       </ul>
@@ -89,5 +93,33 @@
         <a class="button secondary" href="{{ url_for('csv_import.preview') }}">Import CSV</a>
       </div>
     </div>
+  {% endif %}
+  {% if transactions %}
+    <dialog class="card delete-dialog" id="delete-transaction" aria-labelledby="delete-title">
+      <h2 id="delete-title">Delete transaction?</h2>
+      <p><strong data-transaction-name></strong> will be permanently removed. Your balance and totals will update.</p>
+      <form method="post" class="actions">
+        {{ csrf() }}
+        <button class="button secondary" type="button" data-cancel autofocus>Cancel</button>
+        <button class="button danger" type="submit">Delete transaction</button>
+      </form>
+    </dialog>
+    <script>
+      (() => {
+        const dialog = document.querySelector('#delete-transaction');
+        if (typeof dialog.showModal !== 'function') return;
+        const form = dialog.querySelector('form');
+        form.addEventListener('submit', () => { form.querySelector('[type=submit]').disabled = true; });
+        dialog.addEventListener('close', () => { form.querySelector('[type=submit]').disabled = false; });
+        dialog.querySelector('[data-cancel]').addEventListener('click', () => dialog.close());
+        document.querySelectorAll('[data-delete-name]').forEach(link => link.addEventListener('click', event => {
+          if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+          event.preventDefault();
+          form.action = link.href;
+          dialog.querySelector('[data-transaction-name]').textContent = link.dataset.deleteName;
+          dialog.showModal();
+        }));
+      })();
+    </script>
   {% endif %}
 {% endblock %}

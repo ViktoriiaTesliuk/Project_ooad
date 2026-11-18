@@ -8,13 +8,17 @@ from itertools import groupby
 from flask import (
     Blueprint,
     abort,
+    current_app,
     flash,
     g,
+    jsonify,
     redirect,
     render_template,
     request,
     url_for,
 )
+
+from itsdangerous import BadData, URLSafeTimedSerializer
 
 from . import demo, fx, ledger
 from .auth import login_required
@@ -80,6 +84,21 @@ def dashboard():
     )
 
 
+@bp.get("/exchange-rates")
+@login_required
+def exchange_rates():
+    rates = fx.load_rates(ledger.CURRENCIES)
+    response = jsonify([
+        {"currency": code, "buy": f"{rate.value:.4f}", "source": rate.source,
+         "sell": f"{(rate.sell_value or rate.value):.4f}",
+         "fetched_at": rate.fetched_at.isoformat(), "cached": rate.cached}
+        for code, rate in sorted(rates.items())
+    ])
+    response.cache_control.private = True
+    response.cache_control.max_age = 300
+    return response
+
+
 # --------------------------------------------------------------------------- wallets
 
 
@@ -139,6 +158,46 @@ def edit_wallet(wallet_id):
         form=form,
         errors=errors,
     ), 422 if errors else 200
+
+
+@bp.route("/wallets/<int:wallet_id>/delete", methods=["GET", "POST"])
+@login_required
+def delete_wallet(wallet_id):
+    error = None
+    try:
+        wallet = ledger.get_wallet(g.user_id, wallet_id)
+        if request.method == "POST":
+            action = request.form.get("action")
+            expected = request.form.get("expected_count", type=int)
+            serializer = URLSafeTimedSerializer(current_app.secret_key, salt="wallet-delete")
+            confirmation = [g.user_id, wallet_id, expected]
+            try:
+                if action == "review_delete" and wallet.transaction_count == expected and expected:
+                    return render_template(
+                        "delete.html", wallet=wallet, final_token=serializer.dumps(confirmation),
+                    )
+                if action == "delete_entries":
+                    if serializer.loads(request.form.get("final_token", ""), max_age=600) != confirmation:
+                        raise BadData("Confirmation does not match.")
+                ledger.delete_wallet(
+                    g.user_id, wallet_id, action=action, expected_count=expected,
+                    target_id=request.form.get("target_id", type=int),
+                )
+            except BadData:
+                error = "Confirm the permanent deletion on the final review screen."
+            except ledger.ValidationError as exc:
+                error = exc.errors["action"]
+                wallet = ledger.get_wallet(g.user_id, wallet_id)
+            else:
+                flash("Wallet deleted.")
+                return redirect(url_for("ledger.wallets"))
+    except ledger.NotFound:
+        abort(404)
+    destinations = [
+        item for item in ledger.list_wallets(g.user_id)
+        if item.id != wallet.id and item.currency == wallet.currency
+    ] if wallet.has_transactions else []
+    return render_template("delete.html", wallet=wallet, destinations=destinations, error=error), 422 if error else 200
 
 
 # --------------------------------------------------------------------------- transactions
@@ -227,16 +286,17 @@ def edit_transaction(record_id):
     return _transaction_form(record.as_form(), record=record)
 
 
-@bp.post("/transactions/<int:record_id>/delete")
+@bp.route("/transactions/<int:record_id>/delete", methods=["GET", "POST"])
 @login_required
 def delete_transaction(record_id):
     try:
-        record = ledger.get_transaction(g.user_id, record_id)
-        ledger.delete_transaction(g.user_id, record_id)
+        if request.method == "GET":
+            return render_template("delete.html", record=ledger.get_transaction(g.user_id, record_id))
+        occurred_on = ledger.delete_transaction(g.user_id, record_id)
     except ledger.NotFound:
         abort(404)
     flash("Transaction deleted.")
-    return redirect(url_for("ledger.transactions", month=record.occurred_on.strftime("%Y-%m")))
+    return redirect(url_for("ledger.transactions", month=occurred_on.strftime("%Y-%m")))
 
 
 # --------------------------------------------------------------------------- budget

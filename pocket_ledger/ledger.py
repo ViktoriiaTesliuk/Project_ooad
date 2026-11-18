@@ -378,6 +378,45 @@ def update_wallet(user_id, wallet_id, draft):
         raise CurrencyLocked("This wallet already has transactions, so its currency can’t change.")
 
 
+def delete_wallet(user_id, wallet_id, *, action, expected_count, target_id=None):
+    """Move or remove wallet history and delete the wallet in one transaction."""
+    with db.transaction() as transaction_id:
+        options = {"user_id": user_id, "wallet_id": wallet_id, "target_id": target_id or 0}
+        wallets = dict(db.rows(db.execute(
+            """SELECT id, currency FROM wallets
+               WHERE user_id = :user_id AND id IN (:wallet_id, :target_id)
+               ORDER BY id FOR UPDATE""",
+            options, transaction_id=transaction_id,
+        )))
+        if wallet_id not in wallets:
+            raise NotFound("Wallet not found.")
+        params = {"wallet_id": wallet_id}
+        count = db.rows(db.execute(
+            "SELECT COUNT(*) FROM transactions WHERE wallet_id = :wallet_id",
+            params, transaction_id=transaction_id,
+        ))[0][0]
+        if count != expected_count:
+            raise ValidationError({"action": "The transaction count changed. Review the wallet again."})
+        if action == "move":
+            if not count or target_id == wallet_id or wallets.get(target_id) != wallets[wallet_id]:
+                raise ValidationError({"action": "Choose another wallet you own in the same currency."})
+            db.execute(
+                "UPDATE transactions SET wallet_id = :target_id WHERE wallet_id = :wallet_id",
+                dict(params, target_id=target_id), transaction_id=transaction_id,
+            )
+        elif count and action == "delete_entries":
+            db.execute(
+                "DELETE FROM transactions WHERE wallet_id = :wallet_id",
+                params, transaction_id=transaction_id,
+            )
+        elif action != "delete_empty" or count:
+            raise ValidationError({"action": "Choose what to do with the wallet’s transactions."})
+        db.execute(
+            "DELETE FROM wallets WHERE id = :wallet_id AND user_id = :user_id",
+            dict(params, user_id=user_id), transaction_id=transaction_id,
+        )
+
+
 # --------------------------------------------------------------------------- categories
 
 
@@ -514,12 +553,14 @@ def delete_transaction(user_id, record_id):
         DELETE FROM transactions AS t
         USING wallets AS w
         WHERE t.id = :record_id AND w.id = t.wallet_id AND w.user_id = :user_id
-        RETURNING t.id
+        RETURNING CAST(t.occurred_on AS TEXT)
         """,
         {"user_id": user_id, "record_id": record_id},
     )
-    if not db.rows(result):
+    rows = db.rows(result)
+    if not rows:
         raise NotFound("Transaction not found.")
+    return date.fromisoformat(rows[0][0])
 
 
 # --------------------------------------------------------------------------- budgets
