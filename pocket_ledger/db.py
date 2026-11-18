@@ -106,8 +106,8 @@ def transaction():
 
 
 def apply_initial_schema():
-    path = Path(__file__).resolve().parent.parent / "migrations" / "001_initial.sql"
-    statements = sqlparse.split(path.read_text(encoding="utf-8"))
+    directory = Path(__file__).resolve().parent.parent / "migrations"
     with transaction() as transaction_id:
-        for statement in statements:
-            execute(statement, transaction_id=transaction_id)
+        for path in sorted(directory.glob("*.sql")):
+            for statement in sqlparse.split(path.read_text(encoding="utf-8")):
+                execute(statement, transaction_id=transaction_id)

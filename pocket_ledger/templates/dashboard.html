@@ -2,9 +2,9 @@
 {% block title %}Dashboard · Pocket Ledger{% endblock %}
 {% block content %}
   <div class="month-switch">
-    <a href="{{ url_for('ledger.dashboard', month=previous_month|month_param) }}" aria-label="Previous month">←</a>
+    <a href="{{ url_for('ledger.dashboard', month=previous_month|month_param, currency=currency) }}" aria-label="Previous month">←</a>
     <h1>{{ month|month_label }}</h1>
-    <a href="{{ url_for('ledger.dashboard', month=next_month|month_param) }}" aria-label="Next month">→</a>
+    <a href="{{ url_for('ledger.dashboard', month=next_month|month_param, currency=currency) }}" aria-label="Next month">→</a>
   </div>
 
   <div class="actions">
@@ -17,6 +17,30 @@
     <p class="notice">Start by <a href="{{ url_for('ledger.wallets') }}">adding a cash or card wallet</a>.</p>
   {% endif %}
 
+  <form class="filters" method="get" action="{{ url_for('ledger.dashboard') }}">
+    <input type="hidden" name="month" value="{{ month|month_param }}">
+    <label>Display currency
+      <select name="currency">
+        {% for code in currencies %}
+          <option value="{{ code }}"{% if code == currency %} selected{% endif %}>{{ code }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="button secondary" type="submit">Apply</button>
+  </form>
+  {% if missing_currencies %}
+    <p class="notice">Totals are incomplete. Rates for converting {{ missing_currencies|join(', ') }} to {{ currency }} are unavailable.</p>
+  {% endif %}
+  {% if rates %}
+    <p class="muted">
+      Latest available rates:
+      {% for rate in rates %}
+        {{ rate.currency }} · {{ rate.source }}{% if rate.cached %} (cached){% endif %}
+        · {{ rate.fetched_at.strftime('%Y-%m-%d %H:%M %Z') }}{% if not loop.last %}; {% endif %}
+      {% endfor %}
+    </p>
+  {% endif %}
+
   <h2>Monthly budget</h2>
   {% set status = summary.budget %}
   {% if status %}
@@ -27,22 +51,20 @@
         <div class="stat"><dt>{{ 'Over budget' if status.over else 'Remaining' }}</dt>
           <dd class="{{ 'expense' if status.over else 'income' }}">{{ (status.remaining|abs)|money(status.budget.currency) }}</dd></div>
       </dl>
-      <div class="meter{{ ' over' if status.over }}" role="img" aria-label="{{ status.used_percent }}% of the limit used">
+      <div class="meter{{ ' over' if status.over }}" role="img" aria-label="{{ status.used_percent }}% of the limit used{% if missing_currencies %} from available rates{% endif %}">
         <span style="width: {{ [status.used_percent, 100]|min }}%"></span>
       </div>
-      <p class="muted">{{ status.used_percent }}% used · <a href="{{ url_for('ledger.budget', month=month|month_param) }}">Change limit</a></p>
-      {% if status.excluded_currencies %}
-        <p class="notice">Expenses in {{ status.excluded_currencies|join(', ') }} aren’t counted toward this
-          {{ status.budget.currency }} limit until currency conversion is available.</p>
-      {% endif %}
+      <p class="muted">{{ status.used_percent }}% used{% if missing_currencies %} from available rates{% endif %} · <a href="{{ url_for('ledger.budget', month=month|month_param) }}">Change limit</a></p>
+
     </div>
+  {% elif unconverted_budget %}
+    <p class="notice">The budget cannot be displayed in {{ currency }} because its exchange rate is unavailable.</p>
   {% else %}
     <p class="muted">No spending limit for this month. <a href="{{ url_for('ledger.budget', month=month|month_param) }}">Set one</a>.</p>
   {% endif %}
 
   <h2>Income and expenses</h2>
   {% if summary.currencies %}
-    <p class="muted">Totals are shown per currency; amounts in different currencies are not added together.</p>
     <div class="cards">
       {% for item in summary.currencies %}
         <section class="card">
@@ -65,7 +87,7 @@
         </section>
       {% endfor %}
     </div>
-  {% else %}
+  {% elif not missing_currencies %}
     <p class="muted">No income or expenses recorded in {{ month|month_label }}.</p>
   {% endif %}
 

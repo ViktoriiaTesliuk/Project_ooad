@@ -4,7 +4,7 @@ from datetime import date
 
 from flask import Blueprint, abort, flash, g, redirect, render_template, request, url_for
 
-from . import ledger
+from . import fx, gemini, ledger
 from .auth import login_required
 
 bp = Blueprint("ledger", __name__)
@@ -41,9 +41,25 @@ def _id_arg(name):
 @login_required
 def dashboard():
     month = _month_arg(default=ledger.current_month())
+    try:
+        currency = ledger.parse_currency(request.args.get("currency", "UAH"))
+    except ValueError:
+        abort(400, description="Choose a supported display currency.")
+    original = ledger.month_summary(g.user_id, month)
+    needed = {item.currency for item in original.currencies}
+    if original.budget:
+        needed.add(original.budget.budget.currency)
+    needed = (needed | {currency}) if needed - {currency} else set()
+    rates = fx.load_rates(needed)
+    summary, missing, unconverted_budget = fx.dashboard_summary(original, currency, rates)
     return render_template(
         "dashboard.html",
-        summary=ledger.month_summary(g.user_id, month),
+        summary=summary,
+        currency=currency,
+        currencies=ledger.CURRENCIES,
+        rates=sorted(rates.values(), key=lambda rate: rate.currency),
+        missing_currencies=missing,
+        unconverted_budget=unconverted_budget,
         wallets=ledger.list_wallets(g.user_id),
         month=month,
         previous_month=ledger.previous_month(month),
@@ -132,14 +148,25 @@ def transactions():
     )
 
 
-def _transaction_form(template_form, *, record=None):
+def _transaction_form(template_form, *, record=None, suggest=False):
     context = ledger.load_context(g.user_id)
     if not context.wallets:
         flash("Add a wallet before recording income or expenses.")
         return redirect(url_for("ledger.wallets"))
 
     form, errors = template_form, {}
-    if request.method == "POST":
+    ai_text, ai_ready = "", False
+    if suggest:
+        form = request.form.to_dict()
+        ai_text = form.pop("ai_text", "").strip()
+        categories = {item.name: item.id for item in context.categories.values()
+                      if item.kind == "expense"}
+        try:
+            form.update(gemini.suggest(ai_text, categories))
+            ai_ready = True
+        except gemini.DraftError as error:
+            errors["ai_text"] = str(error)
+    elif request.method == "POST":
         form = request.form
         try:
             draft = ledger.parse_transaction(form, context)
@@ -161,6 +188,8 @@ def _transaction_form(template_form, *, record=None):
     return render_template(
         "transaction_form.html",
         record=record,
+        ai_text=ai_text,
+        ai_ready=ai_ready,
         wallets=list(context.wallets.values()),
         categories=list(context.categories.values()),
         form=form,
@@ -177,6 +206,12 @@ def new_transaction():
         "wallet_id": request.args.get("wallet", ""),
         "occurred_on": date.today().isoformat(),
     })
+
+
+@bp.post("/transactions/suggest")
+@login_required
+def suggest_transaction():
+    return _transaction_form({}, suggest=True)
 
 
 @bp.route("/transactions/<int:record_id>/edit", methods=["GET", "POST"])

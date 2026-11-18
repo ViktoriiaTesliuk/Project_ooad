@@ -19,7 +19,7 @@ import sqlparse
 
 from pocket_ledger import create_app, csrf, db
 
-MIGRATION = Path(__file__).resolve().parent.parent / "migrations" / "001_initial.sql"
+MIGRATIONS = Path(__file__).resolve().parent.parent / "migrations"
 _PLACEHOLDER = re.compile(r"(?<![:\w]):([A-Za-z_]\w*)")
 
 
@@ -56,8 +56,9 @@ def pg(monkeypatch):
     connection = psycopg.connect(url, autocommit=True)
     connection.execute("DROP SCHEMA public CASCADE")
     connection.execute("CREATE SCHEMA public")
-    for statement in sqlparse.split(MIGRATION.read_text(encoding="utf-8")):
-        connection.execute(statement)
+    for migration in sorted(MIGRATIONS.glob("*.sql")):
+        for statement in sqlparse.split(migration.read_text(encoding="utf-8")):
+            connection.execute(statement)
 
     def execute(sql, params=None, *, transaction_id=None):
         with connection.cursor() as cursor:
