@@ -4,7 +4,7 @@ import hashlib
 from functools import cache
 from pathlib import Path
 
-from flask import current_app, render_template, request, url_for
+from flask import Blueprint, current_app, render_template, request, url_for
 from werkzeug.exceptions import HTTPException
 
 STATIC_MAX_AGE = 365 * 24 * 60 * 60  # asset URLs carry a content hash
@@ -37,10 +37,24 @@ def static_url(filename):
     return url_for("static", filename=filename, v=_digest(current_app.static_folder, filename))
 
 
+pages = Blueprint("pages", __name__)
+
+
+@pages.get("/privacy")
+def privacy():
+    return render_template("privacy.html")
+
+
+@pages.get("/terms")
+def terms():
+    return render_template("terms.html")
+
+
 def init_app(app):
     if app.config.get("SEND_FILE_MAX_AGE_DEFAULT") is None:  # Flask's default is None
         app.config["SEND_FILE_MAX_AGE_DEFAULT"] = STATIC_MAX_AGE
     app.jinja_env.globals["static_url"] = static_url
+    app.register_blueprint(pages)
 
     # Unhandled exceptions reach this handler as InternalServerError (500) outside
     # testing, after Flask has logged the traceback.

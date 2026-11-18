@@ -123,3 +123,13 @@ def test_migrate_action_and_ignored_events(app, monkeypatch):
     applied.assert_called_once()
     assert lambda_handler.handler({"source": "aws.events"}, None)["status"] == "ignored"
     assert lambda_handler.handler(event("/health"), None)["statusCode"] == 200
+
+
+def test_public_legal_pages(app):
+    for path, heading in (("/privacy", "Privacy Policy"), ("/terms", "Terms of Service")):
+        page = lambda_handler.call_wsgi(app, event(path))
+        assert page["statusCode"] == 200 and f"<h1>{heading}</h1>" in page["body"]
+    home = lambda_handler.call_wsgi(app, event("/"))["body"]
+    assert 'href="/privacy"' in home and 'href="/terms"' in home
+    app.config["CONTACT_EMAIL"] = "owner@example.test"
+    assert "mailto:owner@example.test" in lambda_handler.call_wsgi(app, event("/privacy"))["body"]

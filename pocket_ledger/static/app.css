@@ -199,3 +199,9 @@ details.confirm > div { padding: 0 1rem 1rem; }
   .actions .button { flex: 1 1 auto; }
   .kpi .value { font-size: 1.25rem; }
 }
+
+.site-footer { display: flex; gap: 1.25rem; flex-wrap: wrap; margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line); font-size: .9rem; }
+.site-footer a { color: var(--muted); }
+.legal { max-width: 42rem; }
+.legal h2 { margin-top: 1.75rem; }
+.legal li { margin: .35rem 0; }
