@@ -1,3 +1,4 @@
+import time
 from contextlib import contextmanager
 from datetime import date
 from decimal import Decimal
@@ -5,7 +6,33 @@ from pathlib import Path
 
 import boto3
 import sqlparse
+from botocore.exceptions import ClientError
 from flask import current_app, g
+
+# Aurora Serverless v2 pauses after a few idle minutes. The first Data API call
+# afterwards fails with DatabaseResumingException while the instance resumes,
+# which usually takes 10 to 20 seconds. Wait for it, within the Lambda timeout.
+RESUME_WAIT_SECONDS = 25
+_RESUME_DELAYS = (0.5, 1, 2, 3)
+
+
+def _while_resuming(call, **request):
+    """Call the Data API, retrying while a paused Aurora instance resumes."""
+    deadline = time.monotonic() + RESUME_WAIT_SECONDS
+    attempt = 0
+    while True:
+        try:
+            return call(**request)
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") != "DatabaseResumingException":
+                raise
+            delay = _RESUME_DELAYS[min(attempt, len(_RESUME_DELAYS) - 1)]
+            if time.monotonic() + delay > deadline:
+                raise
+            if attempt == 0:
+                current_app.logger.info("Aurora is resuming from auto-pause; waiting")
+            time.sleep(delay)
+            attempt += 1
 
 
 def _connection():
@@ -50,8 +77,10 @@ def execute(sql, params=None, *, transaction_id=None):
     if params:
         request["parameters"] = [_parameter(name, value) for name, value in params.items()]
     if transaction_id is not None:
+        # Inside a transaction the instance is already awake (BeginTransaction waited).
         request["transactionId"] = transaction_id
-    return client.execute_statement(**request)
+        return client.execute_statement(**request)
+    return _while_resuming(client.execute_statement, **request)
 
 
 def upsert_google_user(subject, email, display_name):
@@ -88,7 +117,7 @@ def transaction():
     Commits on success and rolls back if the block raises.
     """
     client, options = _connection()
-    transaction_id = client.begin_transaction(**options)["transactionId"]
+    transaction_id = _while_resuming(client.begin_transaction, **options)["transactionId"]
     transaction_options = {
         "resourceArn": options["resourceArn"],
         "secretArn": options["secretArn"],

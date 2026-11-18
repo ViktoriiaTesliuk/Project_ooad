@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Terms of Service · Pocket Ledger{% endblock %}
+{% block content %}
+  <article class="legal">
+    <h1>Terms of Service</h1>
+    <p class="muted">Last updated: 18 November 2026</p>
+    <p>By signing in to Pocket Ledger you agree to these terms.</p>
+    <ul>
+      <li>Pocket Ledger is a free student project provided “as is”, without guarantees of availability, accuracy or fitness for any purpose. It is not financial advice.</li>
+      <li>Exchange rates come from public sources and may be delayed or unavailable; converted totals are estimates.</li>
+      <li>Suggestions drafted by Gemini can be wrong. Review every field before you save a transaction.</li>
+      <li>You are responsible for the information you enter. Don’t use the service for anything unlawful or to access other people’s data.</li>
+      <li>The service may change, pause or end at any time, for example when the project finishes. Contact {% include "_contact.html" %} to request your data before then.</li>
+      <li>Your data is handled as described in the <a href="{{ url_for('pages.privacy') }}">Privacy Policy</a>.</li>
+    </ul>
+  </article>
+{% endblock %}

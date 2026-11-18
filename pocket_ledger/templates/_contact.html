@@ -1,0 +1,5 @@
+{%- if config.CONTACT_EMAIL -%}
+  <a href="mailto:{{ config.CONTACT_EMAIL }}">{{ config.CONTACT_EMAIL }}</a>
+{%- else -%}
+  the team that runs this Pocket Ledger site
+{%- endif -%}

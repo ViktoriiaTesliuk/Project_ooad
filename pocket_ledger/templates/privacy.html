@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Privacy Policy · Pocket Ledger{% endblock %}
+{% block content %}
+  <article class="legal">
+    <h1>Privacy Policy</h1>
+    <p class="muted">Last updated: 18 November 2026</p>
+    <p>Pocket Ledger is a student project for tracking personal income and expenses. This page explains what it stores and why.</p>
+
+    <h2>What we collect</h2>
+    <ul>
+      <li><strong>From your Google account, when you sign in:</strong> your Google account identifier, email address and name. We request only the <code>openid</code>, <code>email</code> and <code>profile</code> scopes and never see your Google password.</li>
+      <li><strong>What you enter:</strong> wallets, income and expenses, categories, descriptions, monthly limits, and CSV files you choose to import.</li>
+      <li><strong>Technical data:</strong> a session cookie that keeps you signed in, and short-lived server logs (IP address and request details) used to keep the service running. Logs are deleted after 14 days.</li>
+    </ul>
+
+    <h2>How we use it</h2>
+    <p>Only to show you your own ledger: balances, history, budgets and summaries. Each account sees only its own records. We do not sell your data, show ads, or share it with anyone except the services below.</p>
+
+    <h2>Services that process data for us</h2>
+    <ul>
+      <li><strong>Amazon Web Services</strong> (United States) hosts the application and database.</li>
+      <li><strong>Google</strong> verifies your identity when you sign in.</li>
+      <li><strong>Google Gemini</strong> receives the text you type into <em>Draft an expense from a sentence</em>, together with the expense category names, only when you use that button. Nothing else from your ledger is sent. Requests on Gemini's free tier may be used by Google to improve its products, so don’t type sensitive information there.</li>
+      <li><strong>Monobank and the National Bank of Ukraine</strong> provide public exchange rates; no personal data is sent to them.</li>
+    </ul>
+
+    <h2>Keeping and deleting your data</h2>
+    <p>Your data is kept while your account exists. To delete your account and all of its records, or to get a copy of them, contact {% include "_contact.html" %}. Imported CSV previews that you don’t confirm are discarded after 30 minutes.</p>
+
+    <h2>Google user data</h2>
+    <p>Pocket Ledger’s use of information received from Google APIs adheres to the
+      <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+
+    <h2>Contact</h2>
+    <p>Questions about this policy: {% include "_contact.html" %}.</p>
+  </article>
+{% endblock %}
