@@ -16,7 +16,8 @@
             <span class="amount{{ ' expense' if wallet.balance < 0 }}">{{ wallet.balance|money(wallet.currency) }}</span>
             <span class="small">
               <a href="{{ url_for('ledger.transactions', wallet=wallet.id) }}">History</a> ·
-              <a href="{{ url_for('ledger.edit_wallet', wallet_id=wallet.id) }}">Edit</a>
+              <a href="{{ url_for('ledger.edit_wallet', wallet_id=wallet.id) }}">Edit</a> ·
+              <a class="delete-link" href="{{ url_for('ledger.delete_wallet', wallet_id=wallet.id) }}">Delete</a>
             </span>
           </span>
         </li>

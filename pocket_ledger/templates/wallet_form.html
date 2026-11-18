@@ -30,4 +30,5 @@
       <a class="button secondary" href="{{ url_for('ledger.wallets') }}">Cancel</a>
     </div>
   </form>
+  <p><a class="delete-link" href="{{ url_for('ledger.delete_wallet', wallet_id=wallet.id) }}">Delete wallet</a></p>
 {% endblock %}

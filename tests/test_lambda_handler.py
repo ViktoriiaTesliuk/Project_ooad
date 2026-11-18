@@ -82,7 +82,7 @@ def test_binary_and_compressed_responses_are_base64():
 def test_flask_static_and_redirects_through_the_adapter(app):
     css = lambda_handler.call_wsgi(app, event("/static/app.css"))
     assert css["statusCode"] == 200 and css["headers"]["content-type"].startswith("text/css")
-    assert not css["isBase64Encoded"] and ".topbar" in css["body"]
+    assert not css["isBase64Encoded"] and ".rate-header" in css["body"]
     redirect = lambda_handler.call_wsgi(app, event("/dashboard"))
     assert redirect["statusCode"] == 302 and redirect["headers"]["location"] == "/"
     head = lambda_handler.call_wsgi(app, event("/health", method="HEAD"))

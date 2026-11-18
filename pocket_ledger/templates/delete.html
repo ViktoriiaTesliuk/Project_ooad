@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "_field.html" import csrf %}
+{% block title %}Delete {{ 'wallet' if wallet else 'transaction' }} · Pocket Ledger{% endblock %}
+{% block content %}
+  <section class="card confirmation" aria-labelledby="confirm-title">
+    {% if final_token %}
+      <h1 id="confirm-title">Permanently delete wallet and history?</h1>
+      <p><strong>{{ wallet.name }}</strong> and all {{ wallet.transaction_count }} of its transactions will be permanently removed. This changes your balances, budget and spending totals.</p>
+      <form method="post" class="actions">
+        {{ csrf() }}
+        <input type="hidden" name="expected_count" value="{{ wallet.transaction_count }}">
+        <input type="hidden" name="final_token" value="{{ final_token }}">
+        <a class="button secondary" href="{{ url_for('ledger.delete_wallet', wallet_id=wallet.id) }}">Go back</a>
+        <button class="button danger" name="action" value="delete_entries" type="submit">Permanently delete wallet and transactions</button>
+      </form>
+    {% elif wallet %}
+      <h1 id="confirm-title">Delete {{ wallet.name }}?</h1>
+      {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+      <p>The wallet and its opening balance will be removed. Pending CSV previews for this wallet will expire immediately.</p>
+      {% if wallet.has_transactions %}
+        <p>This wallet has {{ wallet.transaction_count }} recorded {{ 'transaction' if wallet.transaction_count == 1 else 'transactions' }}.</p>
+        {% if destinations %}
+          <form class="stack" method="post">
+            {{ csrf() }}
+            <input type="hidden" name="expected_count" value="{{ wallet.transaction_count }}">
+            <input type="hidden" name="action" value="move">
+            <label for="target-wallet">Move history to another {{ wallet.currency }} wallet
+              <select id="target-wallet" name="target_id" required>
+                <option value="">Choose a wallet</option>
+                {% for item in destinations %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}
+              </select>
+            </label>
+            <button class="button secondary" type="submit">Move transactions and delete wallet</button>
+          </form>
+        {% else %}
+          <p>To keep these transactions, <a href="{{ url_for('ledger.wallets') }}#add-wallet">add another {{ wallet.currency }} wallet</a> first.</p>
+        {% endif %}
+        <p class="expense">Deleting the transactions permanently removes them from History and changes your totals.</p>
+      {% endif %}
+      <form method="post" class="actions">
+        {{ csrf() }}
+        <input type="hidden" name="expected_count" value="{{ wallet.transaction_count }}">
+        <button class="button danger" name="action" value="{{ 'review_delete' if wallet.has_transactions else 'delete_empty' }}" type="submit">{{ 'Review permanent deletion' if wallet.has_transactions else 'Delete empty wallet' }}</button>
+        <a class="button secondary" href="{{ url_for('ledger.wallets') }}">Cancel</a>
+      </form>
+    {% else %}
+      <h1 id="confirm-title">Delete transaction?</h1>
+      <p><strong>{{ record.description or record.category_name }}</strong> · {{ record.amount|money(record.currency) }} · {{ record.occurred_on.isoformat() }}</p>
+      <p>This permanently removes the entry from {{ record.wallet_name }} and updates your balance and totals.</p>
+      <form method="post" class="actions">
+        {{ csrf() }}
+        <button class="button danger" type="submit">Delete transaction</button>
+        <a class="button secondary" href="{{ url_for('ledger.transactions', month=record.occurred_on|month_param) }}">Cancel</a>
+      </form>
+    {% endif %}
+  </section>
+{% endblock %}

@@ -205,3 +205,78 @@ def test_new_transaction_without_wallet_redirects(make_user, login):
     client = login(make_user())
     response = client.get("/transactions/new")
     assert response.status_code == 302 and response.headers["Location"].endswith("/wallets")
+
+
+@pytest.mark.parametrize(("kind", "name", "balance"), [
+    ("expense", "Food", "400.00 UAH"), ("income", "Salary", "600.00 UAH"),
+])
+def test_delete_transaction_updates_balance_and_summary(pg, owner, make_user, login, kind, name, balance):
+    cash = wallet_id(pg, "Cash")
+    response = post(owner, "/transactions/new", {
+        "kind": kind, "wallet_id": cash, "category_id": category_id(pg, name, kind),
+        "amount": "100", "occurred_on": TODAY, "description": "Delete this entry",
+    })
+    assert response.status_code == 302
+    assert balance in owner.get("/wallets").text
+    record = pg.execute("SELECT id FROM transactions").fetchone()[0]
+    url = f"/transactions/{record}/delete"
+    assert url in owner.get("/transactions").text
+    assert "Delete this entry" in owner.get(url).text
+    other = login(make_user())
+    assert post(other, url, {}).status_code == 404
+    assert owner.post(url).status_code == 400
+    assert post(owner, url, {}).status_code == 302
+    assert post(owner, url, {}).status_code == 404
+    assert "500.00 UAH" in owner.get("/wallets").text
+    assert "Delete this entry" not in owner.get("/transactions").text
+    assert "100.00" not in owner.get(f"/dashboard?month={MONTH:%Y-%m}").text
+
+
+def test_move_wallet_history_keeps_receipt_references(pg, owner, make_user, login):
+    cash = wallet_id(pg, "Cash")
+    post(owner, "/wallets", {"name": "Destination", "currency": "UAH", "opening_balance": "500"})
+    post(owner, "/wallets", {"name": "USD", "currency": "USD", "opening_balance": "0"})
+    add_expense(owner, cash, category_id(pg, "Food", "expense"), "25")
+    card = wallet_id(pg, "Destination")
+    pg.execute("""INSERT INTO receipt_fingerprints (user_id, kind, fingerprint, transaction_id)
+                  SELECT w.user_id, 'file', 'test', t.id FROM transactions t JOIN wallets w ON w.id=t.wallet_id""")
+    other = login(make_user())
+    url = f"/wallets/{cash}/delete"
+    data = {"action": "move", "expected_count": 1}
+    assert post(other, url, {**data, "target_id": card}).status_code == 404
+    assert post(owner, url, {**data, "target_id": wallet_id(pg, "USD")}).status_code == 422
+    assert post(owner, url, {**data, "target_id": card}).status_code == 302
+    assert pg.execute("SELECT wallet_id FROM transactions").fetchone() == (card,)
+    assert pg.execute("SELECT COUNT(*) FROM receipt_fingerprints").fetchone() == (1,)
+    assert "475.00 UAH" in owner.get("/wallets").text
+
+
+def test_wallet_history_requires_a_separate_confirmation(pg, owner):
+    import re
+
+    cash = wallet_id(pg, "Cash")
+    url = f"/wallets/{cash}/delete"
+    add_expense(owner, cash, category_id(pg, "Food", "expense"), "25")
+    assert post(owner, url, {"action": "delete_empty", "expected_count": 0}).status_code == 422
+    data = {"action": "delete_entries", "expected_count": 1}
+    assert post(owner, url, data).status_code == 422
+    review = post(owner, url, {"action": "review_delete", "expected_count": 1})
+    token = re.search(r'name="final_token" value="([^"]+)"', review.text)[1]
+    assert pg.execute("SELECT COUNT(*) FROM transactions").fetchone() == (1,)
+    assert post(owner, url, {**data, "final_token": token}).status_code == 302
+    assert pg.execute("SELECT COUNT(*) FROM transactions").fetchone() == (0,)
+    assert "No wallets yet" in owner.get("/wallets").text
+
+
+def test_rates_and_ai_placement(pg, owner, app, monkeypatch):
+    app.config["GEMINI_API_KEY"] = "test-placeholder"
+    rate = fx.Rate("USD", Decimal(40), "Monobank", datetime.now(timezone.utc))
+    monkeypatch.setattr(fx, "load_rates", lambda needed: {"USD": rate})
+    page = owner.get("/dashboard").text
+    header = page.split('<header', 1)[1].split('</header>', 1)[0]
+    assert "/exchange-rates" in header and "<nav" not in header and "<form" not in header
+    assert '<aside class="sidebar"' in page
+    assert "Add expenses with AI" not in page
+    assert "Add expenses with AI" in owner.get("/transactions/new").text
+    assert owner.get("/exchange-rates").json[0]["buy"] == "40.0000"
+    assert app.test_client().get("/exchange-rates").status_code == 302

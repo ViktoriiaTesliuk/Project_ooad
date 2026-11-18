@@ -122,7 +122,7 @@ def run_checks(health, offline):
     path, _, query = css_url[1].partition("?")
     css = invoke(event("GET", path, query=query))
     check(css["statusCode"] == 200 and css["headers"]["content-type"].startswith("text/css")
-          and ".topbar" in css["body"], "static CSS is served from the package")
+          and ".rate-header" in css["body"], "static CSS is served from the package")
     check("max-age=31536000" in css["headers"].get("cache-control", ""), "static assets are cacheable")
     icon = invoke(event("GET", "/static/icon.svg"))
     check(icon["statusCode"] == 200 and "<svg" in icon["body"], "SVG icon is served")

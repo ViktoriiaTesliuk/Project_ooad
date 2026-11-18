@@ -101,7 +101,7 @@ def category(pg, name):
 
 
 def recognise(client, text="", receipt=None):
-    data = {"csrf_token": client.csrf, "ai_text": text, "back": "dashboard"}
+    data = {"csrf_token": client.csrf, "ai_text": text, "back": "new"}
     if receipt is not None:
         data["receipt"] = (io.BytesIO(receipt), "receipt.jpg")
     return client.post("/ai/expenses", data=data, content_type="multipart/form-data")
@@ -191,8 +191,8 @@ def test_discard_and_other_accounts(pg, user, ai, make_user, login):
 def test_gemini_failure_keeps_the_text_and_manual_entry(pg, user, ai):
     ai.replies.append(requests.Timeout())
     failed = recognise(user, "taxi 120")
-    assert failed.status_code == 302 and failed.headers["Location"] == "/dashboard"
-    page = user.get("/dashboard").text
+    assert failed.status_code == 302 and failed.headers["Location"] == "/transactions/new"
+    page = user.get("/transactions/new").text
     assert "temporarily unavailable" in page and ">taxi 120</textarea>" in page
     assert count(pg) == 1
 
@@ -211,7 +211,7 @@ def test_daily_limit(pg, app, user, ai):
 def test_box_is_hidden_without_a_key(pg, app, user):
     app.config["GEMINI_API_KEY"] = None
     assert "Add expenses with AI" not in user.get("/dashboard").text
-    assert recognise(user, "coffee 90").headers["Location"] == "/dashboard"
+    assert recognise(user, "coffee 90").headers["Location"] == "/transactions/new"
 
 
 # --------------------------------------------------------------------------- receipts
