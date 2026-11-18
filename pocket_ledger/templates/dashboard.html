@@ -81,8 +81,8 @@
         <h2 style="margin-top: 0">Spending by category</h2>
         {% if totals and totals.categories %}
           {% for spend in totals.categories %}
-            <div class="bar">
-              <a href="{{ url_for('ledger.transactions', month=month|month_param, category=spend.category_id) }}">{{ spend.name }}</a>
+            <div class="bar" style="--cat: {{ category_color(spend.name) }}">
+              <a href="{{ url_for('ledger.transactions', month=month|month_param, category=spend.category_id) }}"><span class="dot" aria-hidden="true"></span>{{ spend.name }}</a>
               <div class="track"><span style="width: {{ spend.share }}%"></span></div>
               <span class="amount">{{ spend.amount|money }} <span class="muted">· {{ spend.share }}%</span></span>
             </div>
