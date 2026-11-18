@@ -4,6 +4,9 @@
   const result = document.querySelector('#quote-result');
   const swap = document.querySelector('#quote-swap');
   const from = document.querySelector('[data-quote-from]');
+  const inputCode = document.querySelector('[data-quote-input-code]');
+  const targetCode = document.querySelector('[data-quote-target]');
+  const flag = document.querySelector('[data-quote-flag]');
   const direction = document.querySelector('[data-quote-direction]');
   const quotes = document.querySelectorAll('[data-quote]');
   let reverse = false;
@@ -14,13 +17,17 @@
   }
 
   function update() {
-    const option = currency.selectedOptions[0];
+    const option = currency.querySelector('input:checked');
     const code = option.value;
     const source = reverse ? 'UAH' : code;
     const target = reverse ? code : 'UAH';
     quotes.forEach(quote => { quote.hidden = quote.dataset.quote !== code; });
     from.textContent = source;
-    direction.textContent = source + ' to ' + target + (reverse ? ' · Sell rate' : ' · Buy rate');
+    inputCode.textContent = source;
+    targetCode.textContent = target;
+    flag.textContent = option.dataset.flag;
+    direction.textContent = reverse ? 'At sell rate' : 'At buy rate';
+    result.setAttribute('aria-label', 'Converted amount in ' + target);
     const text = amount.value.trim().replace(',', '.');
     const quote = reverse ? option.dataset.sell : option.dataset.buy;
     result.textContent = '—';
@@ -34,7 +41,7 @@
     if (!denominator) return;
     const converted = (numerator + denominator / 2n) / denominator;
     result.textContent = (converted / 100n).toLocaleString('en-US') + '.' +
-      String(converted % 100n).padStart(2, '0') + ' ' + target;
+      String(converted % 100n).padStart(2, '0');
   }
 
   currency.addEventListener('change', update);
