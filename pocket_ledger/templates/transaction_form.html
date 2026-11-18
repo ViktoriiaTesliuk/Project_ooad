@@ -1,27 +1,11 @@
 {% extends "base.html" %}
 {% from "_field.html" import error, invalid, error_summary, csrf %}
+{% from "_ai_box.html" import ai_box with context %}
 {% block title %}{{ 'Edit' if record else 'New' }} transaction · Pocket Ledger{% endblock %}
 {% block content %}
   <h1>{{ 'Edit transaction' if record else 'New transaction' }}</h1>
 
-  {% if not record %}
-    {% if ai_enabled %}
-      <form class="assist" method="post" action="{{ url_for('ledger.suggest_transaction') }}">
-        {{ csrf() }}
-        <h2>Draft an expense from a sentence</h2>
-        <label for="ai_text">Describe the expense
-          <span class="hint">Only this text and the expense category names are sent to Gemini.</span>
-          <input id="ai_text" name="ai_text" maxlength="500" placeholder="185 for lunch with colleagues"
-                 value="{{ ai_text }}"{{ invalid({'ai_text': ai_error} if ai_error else {}, 'ai_text') }}>
-          {% if ai_error %}<span class="error" id="ai_text-error">{{ ai_error }}</span>{% endif %}
-        </label>
-        <div><button class="button secondary" type="submit">Fill the form</button></div>
-      </form>
-    {% endif %}
-    {% if ai_ready %}
-      <p class="notice" role="status">Review the draft from Gemini. Check every field, including the wallet and its currency, before you select <strong>Add transaction</strong>. Nothing is saved yet.</p>
-    {% endif %}
-  {% endif %}
+  {% if not record %}{{ ai_box('new') }}{% endif %}
 
   {{ error_summary(errors, {'kind': 'Type', 'wallet_id': 'Wallet', 'category_id': 'Category', 'occurred_on': 'Date'}) }}
 

@@ -1,0 +1,71 @@
+{% macro ai_box(back) %}
+  {% set ai = ai_state() %}
+  {% if ai.enabled %}
+    <form class="ai-box" method="post" action="{{ url_for('ai.recognise_view') }}" enctype="multipart/form-data" data-ai-box>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="back" value="{{ back }}">
+      <h2>Add expenses with AI</h2>
+      <label for="ai_text" class="visually-hidden">Describe your expenses in English or Ukrainian</label>
+      <textarea id="ai_text" name="ai_text" rows="2" maxlength="500" data-ai-text
+                placeholder="Spent 250 UAH on groceries at Silpo yesterday · Таксі 500 грн і обід 150 грн">{{ ai.text }}</textarea>
+      <div class="ai-actions">
+        <label class="button secondary file-button">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+          <span>Scan a receipt</span>
+          <input type="file" name="receipt" class="visually-hidden" data-receipt
+                 accept="image/jpeg,image/png,image/webp,image/heic,image/heif">
+        </label>
+        <button class="button" type="submit" data-ai-submit{% if ai.remaining == 0 %} disabled{% endif %}>Recognise</button>
+        <span class="muted small" data-receipt-name aria-live="polite"></span>
+      </div>
+      <p class="muted small ai-note">
+        {% if ai.remaining == 0 %}<strong>You’ve used today’s {{ ai.limit }} AI requests.</strong> They reset at midnight Kyiv time.
+        {% else %}You’ll review everything before it’s saved · {{ ai.remaining }} of {{ ai.limit }} AI requests left today.{% endif %}
+        Text and receipt photos are sent to Google Gemini (free tier), which may use them to improve its products.
+        Pocket Ledger doesn’t store the photos. <a href="{{ url_for('pages.privacy') }}">Privacy</a>
+      </p>
+    </form>
+    <script>
+      // Shrink receipt photos in the browser (faster, cheaper, under the upload limit), then submit.
+      (function () {
+        const form = document.currentScript.previousElementSibling;
+        const input = form.querySelector('[data-receipt]');
+        const label = form.querySelector('[data-receipt-name]');
+        const submit = form.querySelector('[data-ai-submit]');
+        const text = form.querySelector('[data-ai-text]');
+        let sending = false;
+        form.addEventListener('submit', function (event) {
+          if (sending) { event.preventDefault(); return; }
+          sending = true;
+          submit.disabled = true;
+          submit.textContent = input.files.length ? 'Reading the receipt…' : 'Recognising…';
+        });
+        text.addEventListener('keydown', function (event) {
+          if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); form.requestSubmit(); }
+        });
+        input.addEventListener('change', async function () {
+          const file = input.files[0];
+          if (!file) return;
+          label.textContent = file.name;
+          try {
+            const bitmap = await createImageBitmap(file);
+            const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(bitmap.width * scale);
+            canvas.height = Math.round(bitmap.height * scale);
+            canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+            const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+            if (blob && blob.size < file.size) {
+              const files = new DataTransfer();
+              files.items.add(new File([blob], 'receipt.jpg', { type: 'image/jpeg' }));
+              input.files = files.files;
+            }
+          } catch (error) {
+            // The browser can't decode it (for example HEIC on some desktops): send the original.
+          }
+          form.requestSubmit();
+        });
+      })();
+    </script>
+  {% endif %}
+{% endmacro %}

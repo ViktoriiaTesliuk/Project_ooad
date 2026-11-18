@@ -4,7 +4,7 @@ import click
 from dotenv import load_dotenv
 from flask import Flask, request
 
-from . import auth, csrf, csv_import, db, demo, ui, views
+from . import ai_expenses, auth, csrf, csv_import, db, demo, ui, views
 
 
 def create_app(test_config=None):
@@ -18,6 +18,7 @@ def create_app(test_config=None):
         SESSION_COOKIE_SAMESITE="Lax",
         GEMINI_API_KEY=os.getenv("GEMINI_API_KEY"),
         CONTACT_EMAIL=os.getenv("CONTACT_EMAIL"),
+        AI_DAILY_LIMIT=int(os.getenv("AI_DAILY_LIMIT", "30")),
         GOOGLE_CLIENT_ID=os.getenv("GOOGLE_CLIENT_ID"),
         GOOGLE_CLIENT_SECRET=os.getenv("GOOGLE_CLIENT_SECRET"),
         RDS_RESOURCE_ARN=os.getenv("RDS_RESOURCE_ARN"),
@@ -33,11 +34,14 @@ def create_app(test_config=None):
     def limit_csv_upload():
         if request.endpoint == "csv_import.preview" and request.method == "POST":
             request.max_content_length = csv_import.MAX_BYTES + 16 * 1024
+        elif request.endpoint == "ai.recognise_view":
+            request.max_content_length = ai_expenses.MAX_IMAGE_BYTES + 64 * 1024
 
     ui.init_app(app)
     csrf.init_app(app)
     auth.init_app(app)
     views.init_app(app)
+    ai_expenses.init_app(app)
     app.register_blueprint(csv_import.bp)
 
     @app.get("/health")

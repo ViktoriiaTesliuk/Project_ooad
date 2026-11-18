@@ -1,14 +1,12 @@
 import io
-import json
 import re
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
-import requests
 
-from pocket_ledger import db, fx, gemini, ledger
+from pocket_ledger import db, fx, ledger
 
 HEADER = b"date,kind,amount,currency,category,description\n"
 EXAMPLE = Path(__file__).resolve().parents[1] / "pocket_ledger" / "static" / "sample-transactions.csv"
@@ -104,56 +102,6 @@ def test_rate_fallback_and_cached_rate(monkeypatch):
     rates = fx.load_rates({"EUR", "USD"})
     assert rates["EUR"].cached and rates["EUR"].fetched_at.year == 2020
     assert fx.convert(Decimal(1), "USD", "EUR", rates) is None
-
-
-@pytest.mark.parametrize("reply", [
-    {"amount": 185.25, "category": "Food", "description": "Lunch"},
-    {"amount": -5, "category": "Food", "description": "Lunch"},
-    {"amount": 5, "category": "Fake", "description": "Lunch"},
-    {"amount": 5, "category": "Food", "description": ["Lunch"]},
-])
-def test_gemini_response_validation(app, monkeypatch, reply):
-    app.config["GEMINI_API_KEY"] = "placeholder"
-    response = Mock()
-    response.json.return_value = {"candidates": [{"content": {"parts": [{"text": json.dumps(reply)}]}}]}
-    post = Mock(return_value=response)
-    monkeypatch.setattr(gemini.requests, "post", post)
-    with app.app_context():
-        if reply["amount"] == 185.25:
-            assert gemini.suggest("Lunch 185.25", {"Food": 1}) == {
-                "amount": "185.25", "kind": "expense", "category_id": 1, "description": "Lunch",
-            }
-        else:
-            with pytest.raises(gemini.DraftError):
-                gemini.suggest("Lunch 185.25", {"Food": 1})
-    body = post.call_args.kwargs["json"]
-    assert json.loads(body["contents"][0]["parts"][0]["text"]) == {
-        "text": "Lunch 185.25", "categories": ["Food"],
-    }
-
-
-def test_gemini_draft_does_not_save_and_manual_entry_survives_timeout(pg, app, make_user, login, monkeypatch):
-    app.config["GEMINI_API_KEY"] = "placeholder"
-    user = make_user()
-    wallet = _wallet(app, user)
-    client = login(user)
-    category = pg.execute("SELECT id FROM categories WHERE name = 'Food'").fetchone()[0]
-    data = {"ai_text": "185 for lunch", "wallet_id": wallet, "occurred_on": "2026-11-12",
-            "csrf_token": client.csrf}
-    with monkeypatch.context() as patch:
-        patch.setattr(gemini, "suggest", lambda *args: {
-            "kind": "expense", "amount": "185.00", "description": "Lunch", "category_id": category,
-        })
-        draft = client.post("/transactions/suggest", data=data)
-        assert "Review the draft" in draft.text and 'value="185.00"' in draft.text
-    monkeypatch.setattr(gemini.requests, "post", Mock(side_effect=requests.Timeout))
-    failure = client.post("/transactions/suggest", data=data)
-    assert failure.status_code == 422 and 'action="/transactions/new"' in failure.text
-    assert pg.execute("SELECT COUNT(*) FROM transactions").fetchone() == (0,)
-    assert client.post("/transactions/new", data={
-        **data, "kind": "expense", "amount": "185.00", "category_id": category,
-    }).status_code == 302
-    assert pg.execute("SELECT COUNT(*) FROM transactions").fetchone() == (1,)
 
 
 def test_monobank_statement_preview():

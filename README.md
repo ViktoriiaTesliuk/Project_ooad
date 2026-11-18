@@ -12,7 +12,7 @@ Pocket Ledger is a personal budgeting app for recording everyday spending, manag
 - A monthly spending limit and a dashboard with income, expenses, remaining
   budget and spending by category in a selected display currency
 - CSV and Monobank statement import with a preview and explicit confirmation
-- Gemini-assisted expense drafts with manual review
+- AI expense entry from one sentence or a receipt photo, with a review step before saving
 - Responsive pages for phones and desktops, with light and dark themes
 - Synthetic sample data for demos
 
@@ -128,19 +128,42 @@ for five minutes and provides the last known rate during an outage.
 The dashboard shows the source and fetch time and labels cached rates
 and incomplete totals.
 
-## Gemini draft setup
+## AI expense entry
 
-Create an API key in Google AI Studio for a project on the Gemini API Free
-Tier, and keep paid billing disabled for that project so usage cannot be
-charged. Free Tier requests may be used by Google to improve its products, so
-the app sends only the typed expense text and the expense category names.
-The app uses Gemini 3.1 Flash-Lite; Free Tier rate limits apply, and the form
-falls back to manual entry when a request is refused or times out.
+**Add expenses with AI** on the dashboard and the **Add** page records expenses
+from one sentence or a receipt photo, in English or Ukrainian:
 
-Set `GEMINI_API_KEY` (or put it in the app secret on AWS). Leave it unset to
-hide the drafting box. **Fill the form** suggests an amount, category and
-description; nothing is saved until you review the fields, choose the wallet
-and select **Add transaction**.
+- *Spent 250 UAH on groceries at Silpo yesterday* or *Таксі 500 грн і обід 150 грн*
+  each become one draft per expense, with the amount, currency, date, description
+  and category filled in. A missing date means today (Kyiv time), and "yesterday"
+  or "вчора" is resolved from today.
+- **Scan a receipt** reads the merchant, date, total, currency and purchased items
+  from a photo or screenshot. The browser shrinks the photo to 1600 px first.
+- Each expense goes to the most used wallet in its currency. If no currency is
+  given, it goes to the most used wallet overall.
+- The **Check** page shows every draft for correction. Fields the model was
+  unsure about, or that had to be assumed, are marked **Check**. A value is left
+  empty rather than invented. **Save** stores the selected drafts in one database
+  transaction and opens the dashboard.
+- Duplicates are caught twice. The same receipt file is never sent to Gemini
+  again once saved: the page links to the saved expense instead. Another photo of
+  an already saved receipt, matched by merchant, date and total, is unselected
+  with a warning. Saving the same draft twice adds nothing.
+- Each user has `AI_DAILY_LIMIT` requests per Kyiv day (default 30), shared by
+  text and receipts, so one account can't use up the free quota.
+
+Setup: create an API key in Google AI Studio for a project on the Gemini API Free
+Tier, keep paid billing disabled for that project, and set `GEMINI_API_KEY` (in the
+app secret on AWS). Without a key the AI box is hidden and manual entry works as
+usual. The app uses Gemini 3.1 Flash-Lite with a JSON response schema, at
+temperature 0, and makes one request per recognition.
+
+Privacy: only the typed text or the receipt photo, plus the expense category
+names, are sent to Gemini. Free Tier requests may be used by Google to improve its
+products, which the AI box and the Privacy Policy say. Photos are processed in
+memory and never stored. For saved receipts the app keeps only a SHA-256 of the
+file and of the merchant, date and total. Unsaved drafts expire after 30 minutes.
+The API key never leaves the server.
 
 ## Deploy on AWS from the Console
 
@@ -266,8 +289,8 @@ In **Lambda → Create function**:
    `dist/pocket-ledger-lambda-arm64.zip`. Under **Runtime settings**, set the
    handler to `pocket_ledger.lambda_handler.handler`.
 3. Under **Configuration → General configuration**, set memory to 512 MB and
-   the timeout to 30 seconds, which leaves room for Aurora to resume from a
-   pause.
+   the timeout to 60 seconds. That leaves room for Aurora to resume from a
+   pause (up to 25 seconds) plus a receipt recognition.
 4. Under **Configuration → Function URL → Create function URL**, choose auth
    type **NONE**, since the app does its own sign-in, and leave CORS off.
    Copy the URL, for example `https://abc123.lambda-url.eu-central-1.on.aws`.
@@ -321,7 +344,7 @@ add every demo account there.
 3. Add an expense and check that the budget's remaining amount changes.
 4. Import the sample CSV from **History → Import CSV**: check the preview,
    then confirm.
-5. Draft an expense with **Fill the form**, review it, and save it.
+5. In **Add expenses with AI**, type "Таксі 500 грн і обід 150 грн" or scan a receipt, check the drafts, and save them.
 6. Sign in from a private window with a second test user and check that none
    of the first user's data is visible.
 

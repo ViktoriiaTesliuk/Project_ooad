@@ -8,7 +8,6 @@ from itertools import groupby
 from flask import (
     Blueprint,
     abort,
-    current_app,
     flash,
     g,
     redirect,
@@ -17,7 +16,7 @@ from flask import (
     url_for,
 )
 
-from . import demo, fx, gemini, ledger
+from . import demo, fx, ledger
 from .auth import login_required
 
 bp = Blueprint("ledger", __name__)
@@ -171,28 +170,14 @@ def transactions():
     )
 
 
-def _transaction_form(template_form, *, record=None, suggest=False):
+def _transaction_form(template_form, *, record=None):
     context = ledger.load_context(g.user_id)
     if not context.wallets:
         flash("Add a wallet before recording income or expenses.")
         return redirect(url_for("ledger.wallets"))
 
     form, errors = template_form, {}
-    ai_text, ai_ready, ai_error = "", False, None
-    if suggest:
-        form = request.form.to_dict()
-        form.pop("csrf_token", None)
-        ai_text = form.pop("ai_text", "").strip()
-        form.setdefault("kind", "expense")
-        form.setdefault("occurred_on", date.today().isoformat())
-        categories = {item.name: item.id for item in context.categories.values()
-                      if item.kind == "expense"}
-        try:
-            form.update(gemini.suggest(ai_text, categories))
-            ai_ready = True
-        except gemini.DraftError as error:
-            ai_error = str(error)
-    elif request.method == "POST":
+    if request.method == "POST":
         form = request.form
         try:
             draft = ledger.parse_transaction(form, context)
@@ -214,15 +199,11 @@ def _transaction_form(template_form, *, record=None, suggest=False):
     return render_template(
         "transaction_form.html",
         record=record,
-        ai_enabled=bool(current_app.config.get("GEMINI_API_KEY")),
-        ai_text=ai_text,
-        ai_ready=ai_ready,
-        ai_error=ai_error,
         wallets=list(context.wallets.values()),
         categories=list(context.categories.values()),
         form=form,
         errors=errors,
-    ), 422 if errors or ai_error else 200
+    ), 422 if errors else 200
 
 
 @bp.route("/transactions/new", methods=["GET", "POST"])
@@ -234,12 +215,6 @@ def new_transaction():
         "wallet_id": request.args.get("wallet", ""),
         "occurred_on": date.today().isoformat(),
     })
-
-
-@bp.post("/transactions/suggest")
-@login_required
-def suggest_transaction():
-    return _transaction_form({}, suggest=True)
 
 
 @bp.route("/transactions/<int:record_id>/edit", methods=["GET", "POST"])

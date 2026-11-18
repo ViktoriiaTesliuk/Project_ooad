@@ -205,3 +205,30 @@ details.confirm > div { padding: 0 1rem 1rem; }
 .legal { max-width: 42rem; }
 .legal h2 { margin-top: 1.75rem; }
 .legal li { margin: .35rem 0; }
+
+/* ---------------------------------------------------------------- AI expense entry */
+
+.ai-box { display: grid; gap: .6rem; margin: 1rem 0; padding: 1rem; border: 1px solid var(--accent); border-radius: var(--radius);
+  background: linear-gradient(135deg, var(--accent-soft), var(--surface) 70%); }
+.ai-box h2 { margin: 0; font-size: 1.05rem; }
+.ai-box textarea { resize: vertical; min-height: 3.2rem; }
+.ai-actions { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+.file-button { cursor: pointer; position: relative; }
+.file-button:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; }
+.ai-note { margin: 0; }
+.check-badge { display: inline-block; padding: 0 .4rem; border-radius: 1rem; background: var(--warn-bg); color: var(--warn-ink);
+  font-size: .75rem; font-weight: 700; letter-spacing: .02em; vertical-align: middle; justify-self: start; width: max-content; }
+.ai-row { display: grid; gap: .6rem; margin: .75rem 0; }
+.ai-row.excluded { opacity: .55; }
+.ai-row-head { display: flex; justify-content: space-between; gap: .75rem; align-items: center; flex-wrap: wrap; }
+.ai-row-head .include { display: flex; gap: .5rem; align-items: center; font-size: 1.05rem; }
+.ai-row-head .include input { width: 1.25rem; height: 1.25rem; min-height: 0; }
+.ai-fields { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); }
+.ai-fields > * { min-width: 0; }
+.ai-fields .wide { grid-column: 1 / -1; }
+.ai-fields .uncertain input, .ai-fields .uncertain select { border-color: var(--warn-ink); background: var(--warn-bg); color: var(--ink); }
+.ai-fields .invalid input, .ai-fields .invalid select { border-color: var(--expense); box-shadow: 0 0 0 1px var(--expense); }
+.items summary { cursor: pointer; color: var(--muted); }
+.items ul { margin: .4rem 0 0; padding-left: 1.2rem; columns: 2 12rem; }
+.sticky-actions { position: sticky; bottom: 0; padding: .75rem 0; background: var(--page); }
+@media (max-width: 44rem) { .sticky-actions { bottom: calc(var(--nav-height) + env(safe-area-inset-bottom)); } }
