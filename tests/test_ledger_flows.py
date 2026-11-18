@@ -276,7 +276,7 @@ def test_rates_and_ai_placement(pg, owner, app, monkeypatch):
     header = page.split('<header', 1)[1].split('</header>', 1)[0]
     assert "/exchange-rates" in header and "<nav" not in header and "<form" not in header
     assert '<aside class="sidebar"' in page
-    assert "Add expenses with AI" not in page
-    assert "Add expenses with AI" in owner.get("/transactions/new").text
+    assert "Add income and expenses with AI" not in page
+    assert "Add income and expenses with AI" in owner.get("/transactions/new").text
     assert owner.get("/exchange-rates").json[0]["buy"] == "40.0000"
     assert app.test_client().get("/exchange-rates").status_code == 302
