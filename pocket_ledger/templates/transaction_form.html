@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% from "_field.html" import error, invalid, csrf %}
+{% block title %}{{ 'Edit' if record else 'New' }} transaction · Pocket Ledger{% endblock %}
+{% block content %}
+  <h1>{{ 'Edit transaction' if record else 'New transaction' }}</h1>
+  <form class="stack" method="post" novalidate>
+    {{ csrf() }}
+    <fieldset role="radiogroup" aria-label="Type">
+      {% for kind, label in [('expense', 'Expense'), ('income', 'Income')] %}
+        <label><input type="radio" name="kind" value="{{ kind }}"{% if form.get('kind') == kind %} checked{% endif %}> {{ label }}</label>
+      {% endfor %}
+    </fieldset>
+    {{ error(errors, 'kind') }}
+
+    <label>Amount
+      <input name="amount" inputmode="decimal" required autofocus value="{{ form.get('amount', '') }}"{{ invalid(errors, 'amount') }}>
+      {{ error(errors, 'amount') }}
+    </label>
+
+    <label>Wallet
+      <select name="wallet_id" required{{ invalid(errors, 'wallet_id') }}>
+        {% for wallet in wallets %}
+          <option value="{{ wallet.id }}"{% if form.get('wallet_id')|string == wallet.id|string %} selected{% endif %}>{{ wallet.name }} ({{ wallet.currency }})</option>
+        {% endfor %}
+      </select>
+      {{ error(errors, 'wallet_id') }}
+    </label>
+
+    <label>Category
+      <select name="category_id" required{{ invalid(errors, 'category_id') }}>
+        {% for kind, label in [('expense', 'Expense categories'), ('income', 'Income categories')] %}
+          <optgroup label="{{ label }}" data-kind="{{ kind }}">
+            {% for category in categories if category.kind == kind %}
+              <option value="{{ category.id }}"{% if form.get('category_id')|string == category.id|string %} selected{% endif %}>{{ category.name }}</option>
+            {% endfor %}
+          </optgroup>
+        {% endfor %}
+      </select>
+      {{ error(errors, 'category_id') }}
+    </label>
+
+    <label>Date
+      <input type="date" name="occurred_on" required value="{{ form.get('occurred_on', '') }}"{{ invalid(errors, 'occurred_on') }}>
+      {{ error(errors, 'occurred_on') }}
+    </label>
+
+    <label>Description
+      <input name="description" maxlength="500" placeholder="Optional" value="{{ form.get('description', '') }}"{{ invalid(errors, 'description') }}>
+      {{ error(errors, 'description') }}
+    </label>
+
+    <div class="actions">
+      <button class="button" type="submit">{{ 'Save changes' if record else 'Add transaction' }}</button>
+      <a href="{{ url_for('ledger.transactions') }}">Cancel</a>
+    </div>
+  </form>
+
+  {% if record %}
+    <form method="post" action="{{ url_for('ledger.delete_transaction', record_id=record.id) }}"
+          onsubmit="return confirm('Delete this transaction?')">
+      {{ csrf() }}
+      <button class="button danger small" type="submit">Delete transaction</button>
+    </form>
+  {% endif %}
+
+  <script>
+    // Show only the categories that match the selected type; the server validates this too.
+    (function () {
+      const select = document.querySelector('select[name="category_id"]');
+      function sync() {
+        const kind = document.querySelector('input[name="kind"]:checked')?.value;
+        if (!kind) return;
+        for (const group of select.querySelectorAll('optgroup')) {
+          const match = group.dataset.kind === kind;
+          group.hidden = !match;
+          group.disabled = !match;
+        }
+        if (select.selectedOptions[0]?.parentElement.dataset.kind !== kind) {
+          const first = select.querySelector(`optgroup[data-kind="${kind}"] option`);
+          if (first) first.selected = true;
+        }
+      }
+      document.querySelectorAll('input[name="kind"]').forEach((input) => input.addEventListener('change', sync));
+      sync();
+    })();
+  </script>
+{% endblock %}

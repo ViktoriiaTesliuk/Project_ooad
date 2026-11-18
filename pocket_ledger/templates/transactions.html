@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}History · Pocket Ledger{% endblock %}
+{% block content %}
+  <h1>History</h1>
+  <form class="filters" method="get" action="{{ url_for('ledger.transactions') }}">
+    <label>Month
+      <input type="month" name="month" value="{{ filters.month|month_param if filters.month else '' }}">
+    </label>
+    <label>Wallet
+      <select name="wallet">
+        <option value="">All wallets</option>
+        {% for wallet in wallets %}
+          <option value="{{ wallet.id }}"{% if filters.wallet_id == wallet.id %} selected{% endif %}>{{ wallet.name }} ({{ wallet.currency }})</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Category
+      <select name="category">
+        <option value="">All categories</option>
+        {% for kind, label in [('expense', 'Expenses'), ('income', 'Income')] %}
+          <optgroup label="{{ label }}">
+            {% for category in categories if category.kind == kind %}
+              <option value="{{ category.id }}"{% if filters.category_id == category.id %} selected{% endif %}>{{ category.name }}</option>
+            {% endfor %}
+          </optgroup>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="actions" style="margin: 0">
+      <button class="button secondary" type="submit">Filter</button>
+      <a href="{{ url_for('ledger.transactions') }}">Clear</a>
+    </div>
+  </form>
+
+  <div class="actions">
+    <a class="button" href="{{ url_for('ledger.new_transaction', kind='expense', wallet=filters.wallet_id or '') }}">Add expense</a>
+    <a class="button secondary" href="{{ url_for('ledger.new_transaction', kind='income', wallet=filters.wallet_id or '') }}">Add income</a>
+  </div>
+
+  {% if transactions %}
+    <ul class="rows">
+      {% for t in transactions %}
+        <li>
+          <span class="main-col">
+            <strong>{{ t.description or t.category_name }}</strong>
+            <span class="muted">{{ t.occurred_on.isoformat() }} · {{ t.category_name }} · {{ t.wallet_name }}</span>
+          </span>
+          <span class="amount">
+            <span class="{{ t.kind }}">{{ '+' if t.kind == 'income' else '−' }}{{ t.amount|money(t.currency) }}</span><br>
+            <a class="muted" href="{{ url_for('ledger.edit_transaction', record_id=t.id) }}">Edit</a>
+          </span>
+        </li>
+      {% endfor %}
+    </ul>
+    {% if transactions|length >= 500 %}<p class="muted">Showing the latest 500 matches. Narrow the filters to see older entries.</p>{% endif %}
+  {% else %}
+    <p class="muted">No transactions match these filters.</p>
+  {% endif %}
+{% endblock %}

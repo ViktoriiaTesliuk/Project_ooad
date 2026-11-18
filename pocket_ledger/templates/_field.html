@@ -1,0 +1,22 @@
+{% macro error(errors, name) -%}
+  {% if errors.get(name) %}<span class="error" id="{{ name }}-error">{{ errors[name] }}</span>{% endif %}
+{%- endmacro %}
+
+{% macro invalid(errors, name) -%}
+  {% if errors.get(name) %} aria-invalid="true" aria-describedby="{{ name }}-error"{% endif %}
+{%- endmacro %}
+
+{% macro csrf() -%}
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{%- endmacro %}
+
+{% macro currency_select(form, errors, currencies) -%}
+  <label>Currency
+    <select name="currency" required{{ invalid(errors, 'currency') }}>
+      {% for code in currencies %}
+        <option value="{{ code }}"{% if form.get('currency') == code %} selected{% endif %}>{{ code }}</option>
+      {% endfor %}
+    </select>
+    {{ error(errors, 'currency') }}
+  </label>
+{%- endmacro %}

@@ -4,7 +4,7 @@ import click
 from dotenv import load_dotenv
 from flask import Flask
 
-from . import auth, db
+from . import auth, csrf, db, views
 
 
 def create_app(test_config=None):
@@ -27,7 +27,9 @@ def create_app(test_config=None):
     if not app.secret_key:
         raise RuntimeError("Set SECRET_KEY before starting Pocket Ledger.")
 
+    csrf.init_app(app)
     auth.init_app(app)
+    views.init_app(app)
 
     @app.get("/health")
     def health():
