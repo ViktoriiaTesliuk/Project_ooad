@@ -1,5 +1,8 @@
 <section class="card analytics-card exchange-card" aria-labelledby="exchange-heading">
   {% set flags = {'USD': '🇺🇸', 'EUR': '🇪🇺', 'PLN': '🇵🇱'} %}
+  {% set first = namespace(code=none) %}
+  {% for code, rate in rate_options.items() %}{% if rate and first.code is none %}{% set first.code = code %}{% endif %}{% endfor %}
+  {% set default_code = first.code or (rate_options|list|first) %}
   <div class="exchange-head">
     <div>
       <h2 id="exchange-heading"><span data-quote-flag aria-hidden="true">🇺🇸</span> Exchange Rates</h2>
@@ -10,7 +13,7 @@
       {% for code, rate in rate_options.items() %}
         <label>
           <input class="visually-hidden" type="radio" name="quote-currency" value="{{ code }}"
-                 data-flag="{{ flags[code] }}"{% if loop.first %} checked{% endif %}
+                 data-flag="{{ flags[code] }}"{% if code == default_code %} checked{% endif %}
                  {% if rate %} data-buy="{{ "{:.12f}".format(rate.value) }}" data-sell="{{ "{:.12f}".format(rate.sell_value or rate.value) }}"{% endif %}>
           <span><span aria-hidden="true">{{ flags[code] }}</span> {{ code }}</span>
         </label>
@@ -18,7 +21,7 @@
     </fieldset>
   </div>
   {% for code, rate in rate_options.items() %}
-    <div class="exchange-panel exchange-quote" data-quote="{{ code }}"{% if not loop.first %} hidden{% endif %}>
+    <div class="exchange-panel exchange-quote" data-quote="{{ code }}"{% if code != default_code %} hidden{% endif %}>
       {% if rate %}
         <p class="quote-caption">Buy / Sell</p>
         <p class="quote-buy" aria-label="Buy rate {{ rate.value|money('UAH') }}">{{ rate.value|money('₴') }}</p>

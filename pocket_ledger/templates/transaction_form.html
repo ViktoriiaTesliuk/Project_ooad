@@ -17,6 +17,7 @@
 
   <form id="manual-entry" class="stack" method="post" action="{{ url_for('ledger.edit_transaction', record_id=record.id) if record else url_for('ledger.new_transaction') }}" novalidate>
     {{ csrf() }}
+    {% if confirm_currency %}<input type="hidden" name="confirm_currency" value="{{ confirm_currency }}">{% endif %}
     <fieldset id="kind" aria-label="Type">
       <div class="segmented">
         {% for kind, label in [('expense', 'Expense'), ('income', 'Income')] %}

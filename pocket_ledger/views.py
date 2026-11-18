@@ -1,7 +1,6 @@
 """Pages for the dashboard, wallets, transaction history and monthly budget."""
 
 from collections import defaultdict
-from datetime import date
 from decimal import Decimal
 from itertools import groupby
 
@@ -17,7 +16,6 @@ from flask import (
     request,
     url_for,
 )
-
 from itsdangerous import BadData, URLSafeTimedSerializer
 
 from . import analytics, demo, fx, ledger
@@ -31,6 +29,20 @@ def init_app(app):
     app.jinja_env.filters["month_label"] = lambda month: month.strftime("%B %Y")
     app.jinja_env.filters["month_param"] = lambda month: month.strftime("%Y-%m")
     app.register_blueprint(bp)
+
+    @app.context_processor
+    def sample_data_banner():
+        def sample_data_present():
+            if g.get("user_id") is None:
+                return False
+            if "has_sample_data" not in g:
+                try:
+                    g.has_sample_data = ledger.has_sample_data(g.user_id)
+                except Exception:  # never let the banner break a page, e.g. an error page
+                    current_app.logger.exception("Could not check for sample data")
+                    g.has_sample_data = False
+            return g.has_sample_data
+        return {"sample_data_present": sample_data_present}
 
 
 def format_money(amount, currency=None):
@@ -234,11 +246,21 @@ def _transaction_form(template_form, *, record=None):
         flash("Add a wallet before recording income or expenses.")
         return redirect(url_for("ledger.wallets"))
 
-    form, errors = template_form, {}
+    form, errors, confirm_currency = template_form, {}, None
     if request.method == "POST":
         form = request.form
         try:
             draft = ledger.parse_transaction(form, context)
+            new_currency = context.wallets[draft.wallet_id].currency
+            if record is not None and new_currency != record.currency \
+                    and form.get("confirm_currency") != new_currency:
+                # Moving an entry to a wallet in another currency keeps the number, not the value.
+                confirm_currency = new_currency
+                raise ledger.ValidationError({"wallet_id": (
+                    f"This moves the entry from {record.currency} to {new_currency}. The amount isn’t "
+                    f"converted: {draft.amount:.2f} will be saved as {new_currency}. Check the amount "
+                    f"in {new_currency}, then save again."
+                )})
             if record is None:
                 ledger.create_transaction(g.user_id, draft)
                 flash("Transaction added.")
@@ -261,6 +283,7 @@ def _transaction_form(template_form, *, record=None):
         categories=list(context.categories.values()),
         form=form,
         errors=errors,
+        confirm_currency=confirm_currency,
     ), 422 if errors else 200
 
 
@@ -271,7 +294,7 @@ def new_transaction():
     return _transaction_form({
         "kind": kind if kind in ledger.KINDS else "expense",
         "wallet_id": request.args.get("wallet", ""),
-        "occurred_on": date.today().isoformat(),
+        "occurred_on": ledger.today().isoformat(),
     })
 
 
@@ -353,5 +376,19 @@ def load_demo():
         flash("Sample data can only be added to an account without wallets.")
     else:
         flash(f"Added {summary.wallets} sample wallets and {summary.transactions} transactions. "
-              "Edit or delete them like any other entry.")
+              "They’re marked as sample data; remove them any time with “Remove sample data”.")
+    return redirect(url_for("ledger.dashboard"))
+
+
+@bp.post("/demo/remove")
+@login_required
+def remove_demo():
+    """Delete the account's sample data; the user's own entries stay."""
+    result = ledger.remove_sample_data(g.user_id)
+    message = (f"Removed {result['entries']} sample transaction{'' if result['entries'] == 1 else 's'}"
+               f" and {result['budgets']} sample limit{'' if result['budgets'] == 1 else 's'}.")
+    if result["kept"]:
+        message += (f" Kept {', '.join(result['kept'])} because it has your own entries;"
+                    " check its opening balance.")
+    flash(message)
     return redirect(url_for("ledger.dashboard"))

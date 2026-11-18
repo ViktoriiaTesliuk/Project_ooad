@@ -5,7 +5,6 @@ no wallets, so it can never mix with a user's real records.
 """
 
 from dataclasses import dataclass
-from datetime import date
 from decimal import Decimal
 
 from . import db, ledger
@@ -53,7 +52,7 @@ def seed(user_id, *, today=None):
     Entries dated after ``today`` are skipped, so the dashboard never shows
     future spending. Everything is written in one database transaction.
     """
-    today = today or date.today()
+    today = today or ledger.today()
     if ledger.list_wallets(user_id):
         raise AccountNotEmpty("This account already has wallets.")
     categories = {(c.kind, c.name): c.id for c in ledger.list_categories()}
@@ -91,4 +90,13 @@ def seed(user_id, *, today=None):
                 user_id, current if which == "current" else previous,
                 Decimal(amount), currency, transaction_id=transaction_id,
             )
+        # Mark everything created here, so it can be shown as sample data and removed later.
+        for wallet_id in wallet_ids.values():
+            for table, column in (("wallets", "id"), ("transactions", "wallet_id")):
+                db.execute(f"UPDATE {table} SET is_sample = true WHERE {column} = :wallet_id",
+                           {"wallet_id": wallet_id}, transaction_id=transaction_id)
+        db.execute(
+            "UPDATE monthly_budgets SET is_sample = true WHERE user_id = :user_id AND month_start IN (:current, :previous)",
+            {"user_id": user_id, "current": current, "previous": previous}, transaction_id=transaction_id,
+        )
     return SeedSummary(len(wallet_ids), count)

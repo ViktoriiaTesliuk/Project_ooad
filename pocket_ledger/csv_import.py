@@ -4,6 +4,7 @@ import csv
 import io
 import json
 import re
+from collections import Counter
 from datetime import datetime
 from decimal import Decimal
 from secrets import token_urlsafe
@@ -133,7 +134,42 @@ def parse_file(upload, wallet, context):
     return preview
 
 
+def _entry_key(kind, occurred_on, amount, description):
+    return (kind, str(occurred_on), f"{Decimal(amount):.2f}", " ".join((description or "").casefold().split()))
+
+
+def already_recorded(wallet_id, drafts, *, transaction_id=None):
+    """Indexes of ``drafts`` that are already in the wallet: same type, date, amount and description.
+
+    Matching counts entries, so two identical purchases on one day in the file are only
+    skipped if the wallet already has two. The caller must have checked wallet ownership.
+    """
+    if not drafts:
+        return set()
+    existing = Counter(
+        _entry_key(kind, day, amount, description)
+        for kind, day, amount, description in db.rows(db.execute(
+            """
+            SELECT kind, CAST(occurred_on AS TEXT), CAST(amount AS TEXT), description
+            FROM transactions
+            WHERE wallet_id = :wallet_id AND occurred_on >= :first AND occurred_on <= :last
+            """,
+            {"wallet_id": wallet_id, "first": min(d.occurred_on for d in drafts),
+             "last": max(d.occurred_on for d in drafts)},
+            transaction_id=transaction_id,
+        ))
+    )
+    duplicates = set()
+    for index, draft in enumerate(drafts):
+        key = _entry_key(draft.kind, draft.occurred_on.isoformat(), draft.amount, draft.description)
+        if existing[key]:
+            existing[key] -= 1
+            duplicates.add(index)
+    return duplicates
+
+
 def stage(user_id, wallet, preview):
+    """Stage every row; rows already in the wallet are skipped when the import is confirmed."""
     token = token_urlsafe(32)
     payload = [
         {
@@ -194,6 +230,9 @@ def confirm(user_id, token):
             ledger.parse_transaction(dict(fields, wallet_id=wallet_id), context)
             for fields in json.loads(payload)
         ]
+        # Check again under the wallet lock, so two previews of one file can't both be saved.
+        duplicates = already_recorded(wallet_id, drafts, transaction_id=transaction_id)
+        drafts = [draft for index, draft in enumerate(drafts) if index not in duplicates]
         for draft in drafts:
             ledger.create_transaction(user_id, draft, transaction_id=transaction_id)
         db.execute(
@@ -210,7 +249,7 @@ def confirm(user_id, token):
 @login_required
 def preview():
     context = ledger.load_context(g.user_id)
-    rows, token, error, selected, wallet = [], None, None, "", None
+    rows, token, error, selected, wallet, duplicates = [], None, None, "", None, set()
     if request.method == "POST":
         selected = request.form.get("wallet_id", "")
         wallet = next((w for w in context.wallets.values() if str(w.id) == selected), None)
@@ -225,20 +264,26 @@ def preview():
             error = str(exc)
         else:
             if not any(errors for _, _, _, errors in rows):
-                token = stage(g.user_id, wallet, rows)
-    invalid = error or (rows and token is None)
+                found = already_recorded(wallet.id, [draft for _, _, draft, _ in rows])
+                duplicates = {rows[index][0] for index in found}
+                if len(duplicates) < len(rows):
+                    token = stage(g.user_id, wallet, rows)
+    summary = summarize(rows, duplicates)
+    invalid = error or summary["invalid"]
     return render_template(
         "csv_import.html", wallets=context.wallets.values(), selected=selected,
-        wallet=wallet, rows=rows, token=token, error=error, summary=summarize(rows),
+        wallet=wallet, rows=rows, token=token, error=error, summary=summary, duplicates=duplicates,
         categories={c.id: c.name for c in context.categories.values()},
     ), 422 if invalid else 200
 
 
-def summarize(rows):
-    """Counts and totals shown before the user confirms an import."""
-    valid = [draft for _, _, draft, errors in rows if draft is not None and not errors]
+def summarize(rows, duplicates=frozenset()):
+    """Counts and totals shown before the user confirms an import; already-recorded rows are excluded."""
+    valid = [draft for number, _, draft, errors in rows
+             if draft is not None and not errors and number not in duplicates]
     return {
-        "rows": len(rows),
+        "rows": len(rows) - len(duplicates),
+        "duplicates": len(duplicates),
         "invalid": sum(1 for *_, errors in rows if errors),
         "expenses": sum(1 for d in valid if d.kind == "expense"),
         "income": sum(1 for d in valid if d.kind == "income"),

@@ -15,12 +15,13 @@
       <p>Add the cash you carry and each bank card as a wallet. Then record spending or import a statement.</p>
       <div class="actions">
         <a class="button" href="{{ url_for('ledger.wallets') }}">Add your first wallet</a>
-        <form method="post" action="{{ url_for('ledger.load_demo') }}">
+        <form method="post" action="{{ url_for('ledger.load_demo') }}"
+              onsubmit="return confirm('Add invented sample wallets, entries and a limit? You can remove them later with one click.')">
           {{ csrf() }}
           <button class="button secondary" type="submit">Explore with sample data</button>
         </form>
       </div>
-      <p class="muted small">Sample data is invented: three wallets, two months of entries and a monthly limit. You can edit or delete it later.</p>
+      <p class="muted small">Sample data is invented: three wallets, two months of entries and a monthly limit. It’s clearly marked, and “Remove sample data” deletes it in one click.</p>
     </section>
   {% else %}
     {% set totals = summary.currencies[0] if summary.currencies else none %}

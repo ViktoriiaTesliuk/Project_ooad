@@ -64,6 +64,16 @@
         <ul class="flash" role="status">{% for message in messages %}<li>{{ message }}</li>{% endfor %}</ul>
       {% endif %}
     {% endwith %}
+    {% if sample_data_present() %}
+      <div class="sample-banner" role="note">
+        <p><strong>You’re looking at sample data.</strong> The wallets, entries and limits marked as samples are invented.</p>
+        <form method="post" action="{{ url_for('ledger.remove_demo') }}"
+              onsubmit="return confirm('Remove the sample wallets, entries and limits? Anything you added yourself stays.')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="button secondary small" type="submit">Remove sample data</button>
+        </form>
+      </div>
+    {% endif %}
     <main id="main-content" tabindex="-1">{% block content %}{% endblock %}</main>
     <footer class="site-footer">
       <span>© 2026 Pocket Ledger</span>
