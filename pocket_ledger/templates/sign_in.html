@@ -1,6 +1,16 @@
 {% extends "base.html" %}
 {% block content %}
-  <h1>Know what you can spend</h1>
-  <p>Track everyday purchases and see what remains in your monthly budget.</p>
-  <a class="button" href="{{ url_for('auth.sign_in') }}">Sign in with Google</a>
+  <section class="hero">
+    <h1>Know what you can spend this month</h1>
+    <p class="lede">Record cash and card spending in a few taps, import bank statements, and see what remains of your monthly budget.</p>
+    <div class="actions">
+      <a class="button" href="{{ url_for('auth.sign_in') }}">Sign in with Google</a>
+    </div>
+    <p class="muted small">Pocket Ledger only uses your Google account to identify you. Your ledger is private to your account.</p>
+  </section>
+  <ul class="features">
+    <li><strong>Wallets in five currencies</strong><span class="muted">UAH, USD, EUR, PLN and GBP, with balances that follow every entry.</span></li>
+    <li><strong>CSV and Monobank import</strong><span class="muted">Preview every row before anything is saved.</span></li>
+    <li><strong>Drafts from a sentence</strong><span class="muted">Type “185 for lunch” and review the suggested expense.</span></li>
+  </ul>
 {% endblock %}

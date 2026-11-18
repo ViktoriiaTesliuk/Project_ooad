@@ -5,6 +5,7 @@ import io
 import json
 import re
 from datetime import datetime
+from decimal import Decimal
 from secrets import token_urlsafe
 
 from flask import Blueprint, abort, flash, g, redirect, render_template, request, url_for
@@ -209,7 +210,7 @@ def confirm(user_id, token):
 @login_required
 def preview():
     context = ledger.load_context(g.user_id)
-    rows, token, error, selected = [], None, None, ""
+    rows, token, error, selected, wallet = [], None, None, "", None
     if request.method == "POST":
         selected = request.form.get("wallet_id", "")
         wallet = next((w for w in context.wallets.values() if str(w.id) == selected), None)
@@ -228,8 +229,22 @@ def preview():
     invalid = error or (rows and token is None)
     return render_template(
         "csv_import.html", wallets=context.wallets.values(), selected=selected,
-        rows=rows, token=token, error=error,
+        wallet=wallet, rows=rows, token=token, error=error, summary=summarize(rows),
+        categories={c.id: c.name for c in context.categories.values()},
     ), 422 if invalid else 200
+
+
+def summarize(rows):
+    """Counts and totals shown before the user confirms an import."""
+    valid = [draft for _, _, draft, errors in rows if draft is not None and not errors]
+    return {
+        "rows": len(rows),
+        "invalid": sum(1 for *_, errors in rows if errors),
+        "expenses": sum(1 for d in valid if d.kind == "expense"),
+        "income": sum(1 for d in valid if d.kind == "income"),
+        "expense_total": sum((d.amount for d in valid if d.kind == "expense"), Decimal("0.00")),
+        "income_total": sum((d.amount for d in valid if d.kind == "income"), Decimal("0.00")),
+    }
 
 
 @bp.post("/confirm")
@@ -242,5 +257,6 @@ def save():
     except (ImportError, ledger.ValidationError) as exc:
         flash(str(exc))
         return redirect(url_for("csv_import.preview"))
-    flash(f"Imported {count} transactions." if count else "This batch was already imported.")
+    flash(f"Imported {count} transaction{'' if count == 1 else 's'}." if count
+          else "This batch was already imported, so nothing was added twice.")
     return redirect(url_for("ledger.transactions"))

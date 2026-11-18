@@ -1,28 +1,44 @@
 {% extends "base.html" %}
-{% from "_field.html" import error, invalid, csrf, currency_select %}
+{% from "_field.html" import error, invalid, error_summary, csrf, currency_select %}
 {% block title %}Budget · Pocket Ledger{% endblock %}
 {% block content %}
   <h1>Spending limit</h1>
   <form class="filters" method="get" action="{{ url_for('ledger.budget') }}">
-    <label>Month <input type="month" name="month" value="{{ month|month_param }}" required></label>
-    <div><button class="button secondary" type="submit">Open</button></div>
+    <label for="b-month">Month <input type="month" id="b-month" name="month" value="{{ month|month_param }}" required></label>
+    <div><button class="button secondary" type="submit">Open month</button></div>
   </form>
 
-  <p class="muted">Set the most you plan to spend in {{ month|month_label }}. Only expenses in the limit’s
-    currency count toward it until currency conversion is available.</p>
+  <p class="muted">Set the most you plan to spend in {{ month|month_label }}. Expenses in other currencies are
+    converted at the latest available rate when you view the dashboard.</p>
 
+  {% if current %}
+    <p>Current limit: <strong class="amount">{{ current.amount|money(current.currency) }}</strong></p>
+  {% endif %}
+
+  {{ error_summary(errors, {'amount': 'Limit'}) }}
   <form class="stack" method="post" action="{{ url_for('ledger.budget', month=month|month_param) }}" novalidate>
     {{ csrf() }}
-    <label>Limit
-      <input name="amount" inputmode="decimal" required value="{{ form.get('amount', '') }}"{{ invalid(errors, 'amount') }}>
+    <label for="amount">Limit
+      <input id="amount" name="amount" inputmode="decimal" required value="{{ form.get('amount', '') }}"{{ invalid(errors, 'amount') }}>
       {{ error(errors, 'amount') }}
     </label>
     {{ currency_select(form, errors, currencies) }}
     <div class="actions">
       <button class="button" type="submit">Save limit</button>
-      {% if current %}
-        <button class="button danger" type="submit" name="action" value="remove" formnovalidate>Remove limit</button>
-      {% endif %}
+      <a class="button secondary" href="{{ url_for('ledger.dashboard', month=month|month_param) }}">Cancel</a>
     </div>
   </form>
+
+  {% if current %}
+    <details class="confirm">
+      <summary>Remove this limit</summary>
+      <div>
+        <p>Remove the {{ current.amount|money(current.currency) }} limit for {{ month|month_label }}? Your transactions are not affected.</p>
+        <form method="post" action="{{ url_for('ledger.budget', month=month|month_param) }}">
+          {{ csrf() }}
+          <button class="button danger" type="submit" name="action" value="remove">Yes, remove it</button>
+        </form>
+      </div>
+    </details>
+  {% endif %}
 {% endblock %}

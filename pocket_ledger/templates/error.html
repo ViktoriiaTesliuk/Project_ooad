@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · Pocket Ledger{% endblock %}
+{% block content %}
+  <div class="empty" style="margin-top: 2rem" role="alert">
+    <p class="muted small">Error {{ code }}</p>
+    <h1 style="margin-top: 0">{{ title }}</h1>
+    <p>{{ message }}</p>
+    <div class="actions">
+      {% if g.user_id is not none %}
+        <a class="button" href="{{ url_for('ledger.dashboard') }}">Go to the dashboard</a>
+      {% else %}
+        <a class="button" href="{{ url_for('auth.index') }}">Go to the sign-in page</a>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

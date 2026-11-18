@@ -1,0 +1,25 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "QueryPocketLedgerClusterThroughDataApi",
+      "Effect": "Allow",
+      "Action": [
+        "rds-data:ExecuteStatement",
+        "rds-data:BeginTransaction",
+        "rds-data:CommitTransaction",
+        "rds-data:RollbackTransaction"
+      ],
+      "Resource": "arn:aws:rds:REGION:ACCOUNT_ID:cluster:CLUSTER_IDENTIFIER"
+    },
+    {
+      "Sid": "ReadOnlyThePocketLedgerSecrets",
+      "Effect": "Allow",
+      "Action": "secretsmanager:GetSecretValue",
+      "Resource": [
+        "DATABASE_SECRET_ARN",
+        "APP_SECRET_ARN"
+      ]
+    }
+  ]
+}

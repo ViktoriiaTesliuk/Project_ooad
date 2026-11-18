@@ -3,48 +3,90 @@
 {% block title %}Import CSV · Pocket Ledger{% endblock %}
 {% block content %}
   <h1>Import transactions</h1>
-  <p>Upload a UTF-8 Monobank statement or a CSV using the columns below. Limit: 100 rows and 128 KiB.</p>
-  <p><code>date,kind,amount,currency,category,description</code></p>
-  <p>Use YYYY-MM-DD dates, positive amounts, and your selected wallet’s currency. Description is optional.</p>
-  <p>For Monobank statements, select a wallet in the card’s currency. The preview uses the amounts in that currency.</p>
-  {% if error %}<p class="notice" role="alert">{{ error }}</p>{% endif %}
-  {% if wallets %}
+  <p class="lede">Upload a bank statement or a spreadsheet export. You’ll see every row before anything is saved.</p>
+
+  {% if error %}
+    <div class="error-summary" role="alert"><h2>The file couldn’t be read</h2><p style="margin: 0">{{ error }}</p></div>
+  {% endif %}
+
+  {% if not wallets %}
+    <div class="empty">
+      <h2>Add a wallet first</h2>
+      <p class="muted">Imported rows are added to one wallet in its currency.</p>
+      <div class="actions"><a class="button" href="{{ url_for('ledger.wallets') }}">Add a wallet</a></div>
+    </div>
+  {% elif not token %}
     <form class="stack" method="post" enctype="multipart/form-data">
       {{ csrf() }}
-      <label>Wallet
-        <select name="wallet_id" required>
-          {% for wallet in wallets %}
-            <option value="{{ wallet.id }}"{% if selected == wallet.id|string %} selected{% endif %}>{{ wallet.name }} ({{ wallet.currency }})</option>
+      <label for="wallet_id">Wallet <span class="hint">Every row is added to this wallet and must use its currency.</span>
+        <select id="wallet_id" name="wallet_id" required>
+          {% for item in wallets %}
+            <option value="{{ item.id }}"{% if selected == item.id|string %} selected{% endif %}>{{ item.name }} · {{ item.currency }}</option>
           {% endfor %}
         </select>
       </label>
-      <label>CSV file <input type="file" name="csv_file" accept=".csv,text/csv" required></label>
-      <button class="button secondary" type="submit">Preview CSV</button>
+      <label for="csv_file">CSV file <span class="hint">UTF-8, up to 100 rows and 128 KiB</span>
+        <input type="file" id="csv_file" name="csv_file" accept=".csv,text/csv" required>
+      </label>
+      <div><button class="button" type="submit">Preview import</button></div>
     </form>
-  {% else %}
-    <p><a href="{{ url_for('ledger.wallets') }}">Create a wallet</a> before importing.</p>
+
+    <details class="confirm" style="margin-top: 1.5rem">
+      <summary style="color: inherit">Which files work?</summary>
+      <div>
+        <p>A CSV with the header <code>date,kind,amount,currency,category,description</code>:
+          dates as YYYY-MM-DD, <code>expense</code> or <code>income</code>, positive amounts, the wallet’s currency,
+          and an existing category name. Description is optional.</p>
+        <p>Monobank statements also work directly. Choose a wallet in the card’s currency; food and transport
+          purchases are categorized from their MCC codes and everything else uses Other.</p>
+        <p><a href="{{ static_url('sample-transactions.csv') }}" download>Download the sample CSV</a> (three UAH rows).</p>
+      </div>
+    </details>
   {% endif %}
+
   {% if rows %}
-    <h2>Import preview</h2>
+    <div class="page-head">
+      <h2>Preview{% if wallet %} for {{ wallet.name }} · {{ wallet.currency }}{% endif %}</h2>
+      {% if token %}<a class="small" href="{{ url_for('csv_import.preview') }}">Choose another file</a>{% endif %}
+    </div>
+    {% if summary.invalid %}
+      <p class="notice" role="alert">{{ summary.invalid }} of {{ summary.rows }} rows need changes. Correct the marked rows in the file and upload it again. Nothing has been imported.</p>
+    {% else %}
+      <div class="kpis">
+        <div class="kpi"><span class="label">Rows to import</span><span class="value">{{ summary.rows }}</span></div>
+        <div class="kpi"><span class="label">{{ summary.expenses }} expense{{ '' if summary.expenses == 1 else 's' }}</span>
+          <span class="value expense">{{ summary.expense_total|money }} <small>{{ wallet.currency }}</small></span></div>
+        <div class="kpi"><span class="label">{{ summary.income }} income</span>
+          <span class="value income">{{ summary.income_total|money }} <small>{{ wallet.currency }}</small></span></div>
+      </div>
+    {% endif %}
     <ul class="rows">
       {% for number, row, draft, errors in rows %}
-        <li>
-          <div class="main-col">
-            <strong>Row {{ number }} · {{ row.get('description') or row.get('category') or 'Transaction' }}</strong>
-            <span>{{ row.get('date') }} · {{ row.get('kind') }} · {{ row.get('amount') }} {{ row.get('currency') }}</span>
-            {% for message in errors.values() %}<span class="expense">{{ message }}</span>{% endfor %}
-          </div>
+        <li class="{{ 'invalid' if errors }}">
+          <span class="main-col">
+            <strong>{{ row.get('description') or row.get('category') or 'Transaction' }}</strong>
+            <span class="muted small">Row {{ number }} · {{ row.get('date') }} · {{ categories.get(draft.category_id) if draft else row.get('category') }}</span>
+            {% for field, message in errors.items() %}<span class="row-error">{{ message }}</span>{% endfor %}
+          </span>
+          {% if draft %}
+            <span class="amount {{ draft.kind }}">{{ '+' if draft.kind == 'income' else '−' }}{{ draft.amount|money(wallet.currency) }}</span>
+          {% else %}
+            <span class="amount muted">{{ row.get('amount') }} {{ row.get('currency') }}</span>
+          {% endif %}
         </li>
       {% endfor %}
     </ul>
     {% if token %}
-      <form method="post" action="{{ url_for('csv_import.save') }}">
+      <form method="post" action="{{ url_for('csv_import.save') }}" class="card" style="margin-top: 1rem">
         {{ csrf() }}
         <input type="hidden" name="token" value="{{ token }}">
-        <button class="button" type="submit">Confirm import</button>
+        <p style="margin-top: 0">Add these {{ summary.rows }} transactions to <strong>{{ wallet.name }}</strong>? Its balance and your budget will update. You can edit or delete them afterwards.</p>
+        <div class="actions" style="margin-bottom: 0">
+          <button class="button" type="submit">Confirm import</button>
+          <a class="button secondary" href="{{ url_for('csv_import.preview') }}">Cancel</a>
+        </div>
+        <p class="muted small">This preview expires in 30 minutes.</p>
       </form>
-    {% else %}
-      <p class="notice">Correct the rows marked above and upload the file again.</p>
     {% endif %}
   {% endif %}
 {% endblock %}
