@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Pocket Ledger{% endblock %}</title>
+  <style>
+    body { margin: auto; max-width: 42rem; padding: 1.5rem; font: 1rem/1.5 system-ui, sans-serif; color: #17233a; }
+    header { display: flex; gap: 1rem; align-items: center; justify-content: space-between; }
+    .button { display: inline-block; padding: .65rem 1rem; color: white; background: #244d79; border: 0; border-radius: .4rem; font: inherit; cursor: pointer; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Pocket Ledger</strong>
+    {% if g.user_id is not none %}
+      <form action="{{ url_for('auth.sign_out') }}" method="post">
+        <input type="hidden" name="csrf_token" value="{{ session['logout_token'] }}">
+        <button class="button" type="submit">Sign out</button>
+      </form>
+    {% endif %}
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+</body>
+</html>
