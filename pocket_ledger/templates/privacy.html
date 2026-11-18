@@ -3,13 +3,13 @@
 {% block content %}
   <article class="legal">
     <h1>Privacy Policy</h1>
-    <p class="muted">Last updated: 18 November 2026</p>
+    <p class="muted">Last updated: 19 November 2026</p>
     <p>Pocket Ledger is a student project for tracking personal income and expenses. This page explains what it stores and why.</p>
 
     <h2>What we collect</h2>
     <ul>
       <li><strong>From your Google account, when you sign in:</strong> your Google account identifier, email address and name. We request only the <code>openid</code>, <code>email</code> and <code>profile</code> scopes and never see your Google password.</li>
-      <li><strong>What you enter:</strong> wallets, income and expenses, categories, descriptions, monthly limits, and CSV files you choose to import.</li>
+      <li><strong>What you enter:</strong> wallets, income and expenses, categories, descriptions, monthly limits, CSV files you choose to import, and expense text or receipt photos you send to the AI assistant.</li>
       <li><strong>Technical data:</strong> a session cookie that keeps you signed in, and short-lived server logs (IP address and request details) used to keep the service running. Logs are deleted after 14 days.</li>
     </ul>
 
@@ -20,7 +20,7 @@
     <ul>
       <li><strong>Amazon Web Services</strong> (United States) hosts the application and database.</li>
       <li><strong>Google</strong> verifies your identity when you sign in.</li>
-      <li><strong>Google Gemini</strong> receives the text you type into <em>Draft an expense from a sentence</em>, together with the expense category names, only when you use that button. Nothing else from your ledger is sent. Requests on Gemini's free tier may be used by Google to improve its products, so don’t type sensitive information there.</li>
+      <li><strong>Google Gemini</strong> reads the expense text you type and the receipt photos you upload in <em>Add expenses with AI</em>, together with the expense category names, only when you use that feature. Nothing else from your ledger is sent. Requests on Gemini’s free tier may be used by Google to improve its products, so don’t include sensitive information. Pocket Ledger processes receipt photos in memory and does not store them; it keeps only a fingerprint (a SHA-256 hash, plus the merchant, date and total) of saved receipts so the same receipt isn’t recorded twice. Unsaved AI drafts are deleted after 30 minutes.</li>
       <li><strong>Monobank and the National Bank of Ukraine</strong> provide public exchange rates; no personal data is sent to them.</li>
     </ul>
 

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_field.html" import csrf %}
+{% from "_ai_box.html" import ai_box with context %}
 {% block title %}Dashboard · Pocket Ledger{% endblock %}
 {% block content %}
   <div class="month-switch" style="margin-top: 1.25rem">
@@ -23,6 +24,7 @@
     </section>
   {% else %}
     {% set totals = summary.currencies[0] if summary.currencies else none %}
+    {{ ai_box('dashboard') }}
     <div class="actions">
       <a class="button" href="{{ url_for('ledger.new_transaction', kind='expense') }}">Add expense</a>
       <a class="button secondary" href="{{ url_for('ledger.new_transaction', kind='income') }}">Add income</a>

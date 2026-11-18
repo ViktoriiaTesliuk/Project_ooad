@@ -1,4 +1,9 @@
-"""Request and validate editable expense fields from Gemini."""
+"""Minimal Gemini API client used by AI expense entry.
+
+The API key stays on the server (``GEMINI_API_KEY``); browsers never see it.
+Responses are constrained to a JSON schema and decoded with ``Decimal`` so
+money never passes through binary floats.
+"""
 
 import json
 from decimal import Decimal
@@ -6,73 +11,52 @@ from decimal import Decimal
 import requests
 from flask import current_app
 
-from . import ledger
-
 MODEL = "gemini-3.1-flash-lite"
-MAX_TEXT = 500
+ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
 
 
 class DraftError(ValueError):
-    pass
+    """Gemini is unavailable or returned something unusable. The message is safe to show."""
 
 
-def suggest(text, categories):
-    key = current_app.config["GEMINI_API_KEY"]
+def is_configured():
+    return bool(current_app.config.get("GEMINI_API_KEY"))
+
+
+def generate(parts, *, system, schema, timeout=(3, 20), max_output_tokens=2048):
+    """Send ``parts`` (text and/or inline images) and return the JSON object Gemini produced."""
+    key = current_app.config.get("GEMINI_API_KEY")
     if not key:
         raise DraftError("AI assistance is unavailable. You can still enter the expense manually.")
-    if not text or len(text) > MAX_TEXT:
-        raise DraftError("Enter an expense description of 1 to 500 characters.")
-    if not categories:
-        raise DraftError("An expense category is needed before drafting an expense.")
-
-    names = list(categories)
     try:
         response = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent",
+            ENDPOINT,
             headers={"x-goog-api-key": key},
             json={
-                "systemInstruction": {"parts": [{"text": (
-                    "Extract an expense amount, category and short description from the input. "
-                    "Use null when no clear positive amount or matching category exists."
-                )}]},
-                "contents": [{"parts": [{"text": json.dumps(
-                    {"text": text, "categories": names}, ensure_ascii=False
-                )}]}],
+                "systemInstruction": {"parts": [{"text": system}]},
+                "contents": [{"role": "user", "parts": parts}],
                 "generationConfig": {
                     "responseMimeType": "application/json",
-                    "responseJsonSchema": {
-                        "type": "object",
-                        "properties": {
-                            "amount": {"type": ["number", "null"]},
-                            "category": {"type": ["string", "null"]},
-                            "description": {"type": "string"},
-                        },
-                        "required": ["amount", "category", "description"],
-                    },
-                    "maxOutputTokens": 640,
+                    "responseJsonSchema": schema,
+                    "temperature": 0,
+                    "maxOutputTokens": max_output_tokens,
                 },
             },
-            timeout=(2, 8),
+            timeout=timeout,
         )
+        if response.status_code == 429:
+            raise DraftError("The free AI quota is busy right now. Try again in a minute or enter the expense manually.")
         response.raise_for_status()
     except requests.RequestException as error:
+        current_app.logger.warning("Gemini request failed: %s", type(error).__name__)
         raise DraftError("AI assistance is temporarily unavailable. You can still enter the expense manually.") from error
 
     try:
         candidate = response.json()["candidates"][0]
-        parts = candidate["content"]["parts"]
-        data = json.loads(
-            "".join(part.get("text", "") for part in parts if not part.get("thought")),
-            parse_float=Decimal,
-        )
-        amount, category, description = data["amount"], data["category"], data["description"]
-        if (category not in categories or not isinstance(description, str)
-                or len(description) > ledger.MAX_DESCRIPTION or "\x00" in description):
-            raise ValueError("Invalid draft fields")
-        if not isinstance(amount, (int, Decimal)) or isinstance(amount, bool):
-            raise ValueError("Invalid draft amount")
-        amount = ledger.parse_amount(amount)
+        text = "".join(part.get("text", "") for part in candidate["content"]["parts"] if not part.get("thought"))
+        data = json.loads(text, parse_float=Decimal)
     except (ValueError, TypeError, KeyError, IndexError, AttributeError) as error:
-        raise DraftError("The assistant could not prepare a complete expense. You can enter it manually.") from error
-    return {"kind": "expense", "amount": f"{amount:.2f}",
-            "category_id": categories[category], "description": description.strip()}
+        raise DraftError("The assistant could not read that. Try rephrasing, or enter the expense manually.") from error
+    if not isinstance(data, dict):
+        raise DraftError("The assistant could not read that. Try rephrasing, or enter the expense manually.")
+    return data

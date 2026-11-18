@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% from "_field.html" import csrf %}
+{% macro field_class(row, name) %}{{ ' uncertain' if name in row.uncertain }}{{ ' invalid' if row.errors.get(name) }}{% endmacro %}
+{% macro badge(row, name) %}{% if name in row.uncertain %}<span class="check-badge">Check</span>{% endif %}{% endmacro %}
+{% macro err(row, name) %}{% if row.errors.get(name) %}<span class="error" id="r{{ row.index }}-{{ name }}-error">{{ row.errors[name] }}</span>{% endif %}{% endmacro %}
+{% block title %}Check expenses · Pocket Ledger{% endblock %}
+{% block content %}
+  <h1>Check {{ 'the receipt' if source == 'receipt' else ('this expense' if rows|length == 1 else 'these ' ~ rows|length ~ ' expenses') }}</h1>
+  <p class="muted">Recognised by AI from your {{ 'receipt photo' if source == 'receipt' else 'message' }}. Nothing is saved yet.
+    Fields marked <span class="check-badge">Check</span> were unclear or assumed, so please confirm them.</p>
+
+  {% if form_error %}<div class="error-summary" role="alert"><h2>{{ form_error }}</h2></div>{% endif %}
+  {% if rows|selectattr('errors')|list %}
+    <div class="error-summary" role="alert" tabindex="-1" id="error-summary"><h2>Fix the marked fields before saving</h2></div>
+    <script>document.getElementById('error-summary').focus();</script>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('ai.save_view', token=token) }}" novalidate data-ai-review>
+    {{ csrf() }}
+    {% for row in rows %}
+      {% set i = row.index %}
+      <section class="card ai-row{{ ' excluded' if not row.include }}" aria-labelledby="r{{ i }}-title">
+        <div class="ai-row-head">
+          <label class="include">
+            <input type="checkbox" name="r{{ i }}-include" {% if row.include %}checked{% endif %} data-include>
+            <strong id="r{{ i }}-title">{{ row.merchant or row.description or 'Expense ' ~ (i + 1) }}</strong>
+          </label>
+          {% if row.duplicate_of %}<a class="small" href="{{ url_for('ledger.edit_transaction', record_id=row.duplicate_of.transaction_id) }}">View the saved one</a>{% endif %}
+        </div>
+        {% for warning in row.warnings %}<p class="notice small">{{ warning }}</p>{% endfor %}
+        <div class="ai-fields">
+          <label class="{{ field_class(row, 'amount') }}" for="r{{ i }}-amount">Amount {{ badge(row, 'amount') }}
+            <input id="r{{ i }}-amount" name="r{{ i }}-amount" inputmode="decimal" value="{{ row.amount }}"
+                   {% if row.errors.get('amount') %}aria-invalid="true" aria-describedby="r{{ i }}-amount-error"{% endif %}>
+            {{ err(row, 'amount') }}
+          </label>
+          <label class="{{ field_class(row, 'wallet') }}{{ field_class(row, 'currency') }}{{ ' invalid' if row.errors.get('wallet_id') }}" for="r{{ i }}-wallet_id">Wallet {{ badge(row, 'wallet') or badge(row, 'currency') }}
+            <select id="r{{ i }}-wallet_id" name="r{{ i }}-wallet_id">
+              {% if not row.wallet_id %}<option value="">Choose a wallet</option>{% endif %}
+              {% for wallet in wallets %}
+                <option value="{{ wallet.id }}"{% if row.wallet_id == wallet.id|string %} selected{% endif %}>{{ wallet.name }} · {{ wallet.currency }}</option>
+              {% endfor %}
+            </select>
+            {% if row.errors.get('wallet_id') %}<span class="error">{{ row.errors['wallet_id'] }}</span>{% endif %}
+          </label>
+          <label class="{{ field_class(row, 'category') }}{{ ' invalid' if row.errors.get('category_id') }}" for="r{{ i }}-category_id">Category {{ badge(row, 'category') }}
+            <select id="r{{ i }}-category_id" name="r{{ i }}-category_id">
+              {% for category in categories %}
+                <option value="{{ category.id }}"{% if row.category_id == category.id|string %} selected{% endif %}>{{ category.name }}</option>
+              {% endfor %}
+            </select>
+            {% if row.errors.get('category_id') %}<span class="error">{{ row.errors['category_id'] }}</span>{% endif %}
+          </label>
+          <label class="{{ field_class(row, 'date') }}{{ ' invalid' if row.errors.get('occurred_on') }}" for="r{{ i }}-occurred_on">Date {{ badge(row, 'date') }}
+            <input type="date" id="r{{ i }}-occurred_on" name="r{{ i }}-occurred_on" value="{{ row.occurred_on }}">
+            {% if row.errors.get('occurred_on') %}<span class="error">{{ row.errors['occurred_on'] }}</span>{% endif %}
+          </label>
+          <label class="wide{{ field_class(row, 'description') }}" for="r{{ i }}-description">Description
+            <input id="r{{ i }}-description" name="r{{ i }}-description" maxlength="500" value="{{ row.description }}">
+            {{ err(row, 'description') }}
+          </label>
+        </div>
+        {% if row.receipt_items %}
+          <details class="items"><summary>{{ row.receipt_items|length }} item{{ '' if row.receipt_items|length == 1 else 's' }} on the receipt</summary>
+            <ul>{% for item in row.receipt_items %}<li>{{ item }}</li>{% endfor %}</ul>
+          </details>
+        {% endif %}
+      </section>
+    {% endfor %}
+
+    <div class="actions sticky-actions">
+      <button class="button" type="submit" name="action" value="save" data-save>Save {{ rows|selectattr('include')|list|length }} expense{{ '' if rows|selectattr('include')|list|length == 1 else 's' }}</button>
+      <button class="button secondary" type="submit" name="action" value="discard" formnovalidate>Discard</button>
+    </div>
+  </form>
+  <script>
+    (function () {
+      const form = document.querySelector('[data-ai-review]');
+      const save = form.querySelector('[data-save]');
+      function update() {
+        const boxes = [...form.querySelectorAll('[data-include]')];
+        const count = boxes.filter((box) => box.checked).length;
+        boxes.forEach((box) => box.closest('.ai-row').classList.toggle('excluded', !box.checked));
+        save.textContent = `Save ${count} expense${count === 1 ? '' : 's'}`;
+        save.disabled = count === 0;
+      }
+      form.addEventListener('change', update);
+      form.addEventListener('submit', () => setTimeout(() => { save.disabled = true; }, 0));
+      update();
+    })();
+  </script>
+{% endblock %}

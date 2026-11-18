@@ -157,7 +157,8 @@ def outside_services(app, monkeypatch):
 
     def gemini_post(url, *, headers, json, timeout):
         assert "gemini" in url and headers["x-goog-api-key"] == "placeholder"
-        reply = '{"amount": 12.5, "category": "Food", "description": "Coffee and croissant"}'
+        reply = ('{"expenses": [{"amount": 12.5, "currency": "EUR", "date": "2026-11-15", "merchant": null,'
+                 ' "description": "Coffee and croissant", "category": "Food", "items": [], "uncertain": []}]}')
         return Mock(raise_for_status=Mock(), json=Mock(return_value={
             "candidates": [{"content": {"parts": [{"text": reply}]}}]}))
 
@@ -208,17 +209,23 @@ def test_release_flow_through_function_url(pg, app, google, outside_services):
     assert "Imported 3 transactions." in history
     assert all(text in history for text in ("Lunch", "Bus", "Gift", "Market"))
 
-    # Gemini draft: suggested, reviewed (wallet changed to EUR), then saved.
+    # AI entry: one sentence, recognised by Gemini, reviewed (EUR wallet picked from the currency), saved.
     form_page = alice.get("/transactions/new")
-    draft = alice.request("POST", "/transactions/suggest", form={
-        "csrf_token": alice.csrf(form_page), "ai_text": "12.5 for coffee and a croissant"})
-    assert draft["statusCode"] == 200 and "Review the draft" in draft["text"]
+    assert "Add expenses with AI" in form_page["text"]
+    recognised = alice.request("POST", "/ai/expenses", form={
+        "csrf_token": alice.csrf(form_page), "back": "new", "ai_text": "12.5 EUR for coffee and a croissant"})
+    assert recognised["statusCode"] == 302 and recognised["headers"]["location"].startswith("/ai/expenses/")
+    draft = alice.follow(recognised)
+    assert draft["statusCode"] == 200 and "Check this expense" in draft["text"]
     assert 'value="12.50"' in draft["text"] and 'value="Coffee and croissant"' in draft["text"]
+    assert f'<option value="{euro}" selected>' in draft["text"]
     assert count(pg, "SELECT COUNT(*) FROM transactions") == 4  # the draft is not saved
-    saved = alice.request("POST", "/transactions/new", form={
-        "csrf_token": alice.csrf(draft), "kind": "expense", "wallet_id": euro, "category_id": food,
-        "amount": "12.50", "occurred_on": "2026-11-15", "description": "Coffee and croissant"})
+    saved = alice.request("POST", recognised["headers"]["location"], form={
+        "csrf_token": alice.csrf(draft), "action": "save", "r0-include": "on", "r0-wallet_id": euro,
+        "r0-category_id": food, "r0-amount": "12.50", "r0-occurred_on": "2026-11-15",
+        "r0-description": "Coffee and croissant"})
     assert saved["statusCode"] == 302
+    assert "Saved 1 expense (12.50 EUR)." in alice.follow(saved)["text"]
     assert count(pg, "SELECT currency FROM transactions WHERE description = 'Coffee and croissant'") == "EUR"
 
     # Dashboard in UAH: 300 + 185 + 25.50 UAH, plus 12.50 EUR × 44 (Monobank buy rate) = 1 060.50.
