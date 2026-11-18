@@ -1,0 +1,30 @@
+<section class="card analytics-card exchange-card" aria-labelledby="exchange-heading">
+  <h2 id="exchange-heading">Exchange rates</h2>
+  <label for="quote-currency">Currency against UAH</label>
+  <select id="quote-currency">
+    {% for code, rate in rate_options.items() %}
+      <option value="{{ code }}"{% if rate %} data-buy="{{ "{:.12f}".format(rate.value) }}" data-sell="{{ "{:.12f}".format(rate.sell_value or rate.value) }}"{% endif %}>{{ code }}</option>
+    {% endfor %}
+  </select>
+  {% for code, rate in rate_options.items() %}
+    <div data-quote="{{ code }}"{% if not loop.first %} hidden{% endif %}>
+      {% if rate %}
+        <dl class="quote-values">
+          <div><dt>Buy</dt><dd>{{ rate.value|money('UAH') }}</dd></div>
+          <div><dt>Sell</dt><dd>{{ (rate.sell_value or rate.value)|money('UAH') }}</dd></div>
+        </dl>
+        <p class="muted small">{{ rate.source }}{% if rate.cached %} · Cached{% endif %} · Updated <time datetime="{{ rate.fetched_at.isoformat() }}">{{ rate.fetched_at.strftime('%d %b, %H:%M %Z') }}</time></p>
+      {% else %}
+        <p class="muted">No {{ code }}/UAH quote available.</p>
+      {% endif %}
+    </div>
+  {% endfor %}
+  <div class="quote-converter">
+    <label for="quote-amount">Amount in <span data-quote-from>USD</span></label>
+    <input id="quote-amount" inputmode="decimal" maxlength="19" placeholder="0.00">
+    <button class="button secondary small" id="quote-swap" type="button" aria-label="Swap conversion direction">⇄</button>
+    <output id="quote-result" for="quote-amount quote-currency" aria-live="polite">—</output>
+    <p class="muted small" data-quote-direction>USD to UAH · Buy rate</p>
+  </div>
+</section>
+<script src="{{ static_url('exchange-card.js') }}" defer></script>

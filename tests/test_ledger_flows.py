@@ -92,7 +92,7 @@ def test_edit_transaction_recalculates_budget_and_balance(pg, owner):
     assert response.status_code == 302
     dashboard = owner.get(f"/dashboard?month={month}").text
     assert "Over budget" in dashboard and "250.00 UAH" in dashboard
-    assert "Transport" in dashboard and "Food" not in dashboard.split("Spending by category")[1]
+    assert "Transport" in dashboard and "Food" not in dashboard.split("Expenses by category")[1]
     assert "-750.00 UAH" in owner.get("/wallets").text
 
     assert post(owner, f"/transactions/{record}/delete", {}).status_code == 302

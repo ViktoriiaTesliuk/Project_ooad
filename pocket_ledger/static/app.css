@@ -394,3 +394,45 @@ details.confirm > div { padding: 0 var(--card-padding) var(--card-padding); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 1ms !important; scroll-behavior: auto !important; }
 }
+
+/* Dashboard analytics */
+.analytics-grid { display: grid; gap: var(--space-4); margin-top: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
+.analytics-card { min-width: 0; }
+.analytics-card h2 { margin-top: 0; }
+.chart-keys { display: flex; flex-wrap: wrap; gap: .9rem; font-size: .8rem; }
+.chart-plot { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .5rem; height: 10rem; margin: 1.25rem 0 1.8rem; }
+.chart-axis, .chart-columns { position: relative; }
+.chart-axis span { position: absolute; inset: auto 0 var(--level) auto; transform: translateY(50%); white-space: nowrap; }
+.chart-axis { width: 3.9rem; font-size: .7rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.chart-columns { display: flex; }
+.chart-gridline { position: absolute; inset: auto 0 var(--level); border-top: 1px dashed var(--line); }
+.chart-column { flex: 1; min-width: 0; position: relative; display: flex; gap: 2px; align-items: end; justify-content: center; padding-inline: 2px; }
+.chart-column small { position: absolute; top: 100%; padding-top: .35rem; color: var(--muted); font-size: .7rem; }
+.chart-bar { flex: 1; max-width: 1.35rem; height: var(--height); border-radius: 2px 2px 0 0; }
+.chart-bar.has-value { min-height: 1px; }
+.chart-bar.daily { background: var(--accent); }
+.chart-bar.income { background: var(--income); }
+.chart-bar.expense { background: var(--expense); }
+.chart-unit { text-align: right; }
+.chart-values summary { color: var(--muted); cursor: pointer; font-size: .85rem; }
+.chart-values table { width: 100%; border-collapse: collapse; font-size: .8rem; font-variant-numeric: tabular-nums; }
+.chart-values th, .chart-values td { border-bottom: 1px solid var(--line); padding: .35rem; text-align: right; overflow-wrap: anywhere; }
+.chart-values th:first-child { text-align: left; }
+.category-layout { display: grid; grid-template-columns: minmax(5rem, 1fr) minmax(0, 2fr); gap: .75rem; align-items: center; }
+.category-donut { width: 100%; max-width: 10rem; place-self: center; }
+.category-legend { list-style: none; padding: 0; margin: 0; }
+.category-legend li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: .4rem; padding-block: .35rem; border-bottom: 1px solid var(--line); font-size: .85rem; }
+.category-legend a, .category-legend .amount { white-space: normal; overflow-wrap: anywhere; }
+.category-legend .amount small { display: block; }
+.quote-values { display: flex; gap: 1.5rem; margin-block: .65rem .25rem; }
+.quote-values dt { font-size: .75rem; color: var(--muted); }
+.quote-values dd { margin: 0; font-weight: 650; font-variant-numeric: tabular-nums; }
+.quote-converter { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: .45rem; align-items: center; }
+.quote-converter label, .quote-converter p { grid-column: 1 / -1; }
+.quote-converter output { font-weight: 650; color: var(--income); overflow-wrap: anywhere; }
+.exchange-card select { max-width: 8rem; }
+@media (max-width: 26rem) {
+  .category-layout { grid-template-columns: 1fr; }
+  .category-donut { max-width: 7rem; }
+  .chart-column { padding-inline: 1px; }
+}

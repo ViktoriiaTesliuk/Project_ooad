@@ -20,7 +20,7 @@ from flask import (
 
 from itsdangerous import BadData, URLSafeTimedSerializer
 
-from . import demo, fx, ledger
+from . import analytics, demo, fx, ledger
 from .auth import login_required
 
 bp = Blueprint("ledger", __name__)
@@ -61,13 +61,11 @@ def dashboard():
         currency = ledger.parse_currency(request.args.get("currency", "UAH"))
     except ValueError:
         abort(400, description="Choose a supported display currency.")
-    original = ledger.month_summary(g.user_id, month)
-    needed = {item.currency for item in original.currencies}
-    if original.budget:
-        needed.add(original.budget.budget.currency)
-    needed = (needed | {currency}) if needed - {currency} else set()
-    rates = fx.load_rates(needed)
-    summary, missing, unconverted_budget = fx.dashboard_summary(original, currency, rates)
+    wallets = ledger.list_wallets(g.user_id)
+    summary, missing, unconverted_budget, daily, monthly, missing_history, rates = (
+        analytics.load_dashboard(g.user_id, month, currency) if wallets
+        else (None, [], False, None, None, [], {})
+    )
     return render_template(
         "dashboard.html",
         summary=summary,
@@ -76,7 +74,8 @@ def dashboard():
         rates=sorted(rates.values(), key=lambda rate: rate.currency),
         missing_currencies=missing,
         unconverted_budget=unconverted_budget,
-        wallets=ledger.list_wallets(g.user_id),
+        wallets=wallets, daily=daily, monthly=monthly, missing_history=missing_history,
+        rate_options={code: rates.get(code) for code in ("USD", "EUR", "PLN")},
         month=month,
         is_current_month=month == ledger.current_month(),
         previous_month=ledger.previous_month(month),
