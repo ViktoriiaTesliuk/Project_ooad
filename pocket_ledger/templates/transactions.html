@@ -60,7 +60,7 @@
           <li>
             <a class="main-col" href="{{ url_for('ledger.edit_transaction', record_id=t.id) }}" aria-label="Edit {{ t.description or t.category_name }}">
               <strong>{{ t.description or t.category_name }}</strong>
-              <span class="muted small">{{ t.category_name }} · {{ t.wallet_name }}</span>
+              <span class="small row-meta"><span class="tag" style="--cat: {{ category_color(t.category_name) }}">{{ t.category_name }}</span><span class="muted">· {{ t.wallet_name }}</span></span>
             </a>
             <span class="amount {{ t.kind }}">{{ '+' if t.kind == 'income' else '−' }}{{ t.amount|money(t.currency) }}</span>
           </li>

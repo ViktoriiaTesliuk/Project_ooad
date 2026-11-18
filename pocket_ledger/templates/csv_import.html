@@ -65,7 +65,8 @@
         <li class="{{ 'invalid' if errors }}">
           <span class="main-col">
             <strong>{{ row.get('description') or row.get('category') or 'Transaction' }}</strong>
-            <span class="muted small">Row {{ number }} · {{ row.get('date') }} · {{ categories.get(draft.category_id) if draft else row.get('category') }}</span>
+            {% set category_name = categories.get(draft.category_id) if draft else row.get('category') %}
+            <span class="small row-meta"><span class="muted">Row {{ number }} · {{ row.get('date') }} ·</span><span class="tag" style="--cat: {{ category_color(category_name) }}">{{ category_name }}</span></span>
             {% for field, message in errors.items() %}<span class="row-error">{{ message }}</span>{% endfor %}
           </span>
           {% if draft %}

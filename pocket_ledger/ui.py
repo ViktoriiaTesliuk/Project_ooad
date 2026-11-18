@@ -50,10 +50,35 @@ def terms():
     return render_template("terms.html")
 
 
+# One colour per category, used for chart bars, legend dots and tags alike.
+# Matches the --cat-* tokens in static/app.css.
+CATEGORY_COLORS = {
+    "food": "green",
+    "transport": "blue",
+    "cafes & restaurants": "orange",
+    "health": "red",
+    "shopping": "yellow",
+    "entertainment": "pink",
+    "education": "purple",
+    "housing": "teal",
+    "utilities": "cyan",
+    "travel": "lime",
+    "salary": "green",
+    "other": "gray",
+}
+
+
+def category_color(name):
+    """CSS variable holding the colour of a category; unknown categories are gray."""
+    token = CATEGORY_COLORS.get(str(name or "").strip().casefold(), "gray")
+    return f"var(--cat-{token})"
+
+
 def init_app(app):
     if app.config.get("SEND_FILE_MAX_AGE_DEFAULT") is None:  # Flask's default is None
         app.config["SEND_FILE_MAX_AGE_DEFAULT"] = STATIC_MAX_AGE
     app.jinja_env.globals["static_url"] = static_url
+    app.jinja_env.globals["category_color"] = category_color
     app.register_blueprint(pages)
 
     # Unhandled exceptions reach this handler as InternalServerError (500) outside
